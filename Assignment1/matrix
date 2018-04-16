@@ -1,29 +1,46 @@
-!/bin/bash
+#!/bin/bash
 #Author:Mario Franco-Munoz
 #Script Name: matrix (assignment 1; CS344)
 #Due Date: 4/23/2018
 
 #temp file
-#cat > /tmp/file
+
 TMP=tmp$$
 
 #trap for delting files upon exit
 #source/reference:
 # https://stackoverflow.com/questions/687014/removing-created-temp-files-in-unexpected-bash-exit
+trap "rm -f $TMP*" EXIT
 
-
-#function: dim
+#function: dims
 #description:
 #input:
 #output:
 #source/reference:
 #https://stackoverflow.com/questions/8629330/unix-count-of-columns-in-file
-dim() {
+dims() {
 
 
-	input_file="temp$$"
-	cat $1 >$input_file
-	read -r line < $input_file
-	printf "`wc -l < $input_file` `head -1 $input_file | tr '|' ' ' | wc -w`\n"
+	inputFile="temp$$"
+	cat $1 >$inputFile
+	read -r line < $inputFile
+	printf "`wc -l < $inputFile` `head -1 $inputFile | tr '|' ' ' | wc -w`\n"
 
 }
+
+
+
+
+
+
+
+
+
+
+#MAIN SECTION
+
+
+if [[ #1 == "dims" ]]
+then
+	dims $2
+fi
