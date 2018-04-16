@@ -8,7 +8,7 @@
 TMP=tmp$$
 
 #trap for delting files upon exit
-#source:
+#source/reference:
 # https://stackoverflow.com/questions/687014/removing-created-temp-files-in-unexpected-bash-exit
 
 
@@ -16,8 +16,14 @@ TMP=tmp$$
 #description:
 #input:
 #output:
+#source/reference:
+#https://stackoverflow.com/questions/8629330/unix-count-of-columns-in-file
 dim() {
 
 
+	input_file="temp$$"
+	cat $1 >$input_file
+	read -r line < $input_file
+	printf "`wc -l < $input_file` `head -1 $input_file | tr '|' ' ' | wc -w`\n"
 
 }
