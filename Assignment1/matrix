@@ -5,7 +5,7 @@
 
 #temp file
 
-TMP=tmp$$
+TMP=TMP$$
 
 #trap for delting files upon exit
 #source/reference:
@@ -13,21 +13,54 @@ TMP=tmp$$
 trap "rm -f $TMP*" EXIT
 
 #function: dims
-#description:
-#input:
-#output:
+#description: displays the dimensions of the input matrix "rows columns"
+#input: file containing space delimited columns
+#output: dimensions of input matrix "rows columns"
 #source/reference:
 #https://stackoverflow.com/questions/8629330/unix-count-of-columns-in-file
 dims() {
 
-
-	inputFile="temp$$"
+	#create temporary file and load in contents of argument to temp file
+	inputFile="TMP$$"
 	cat $1 >$inputFile
+	
+	#prints the dimensions of the array using wc (word count) and head
 	read -r line < $inputFile
 	printf "`wc -l < $inputFile` `head -1 $inputFile | tr '|' ' ' | wc -w`\n"
 
 }
 
+#function: transpose
+#description: reflects the elements along the diagonal
+#input: M x N matrix in space delimited format M = rows, N = cols
+#output: display (in I/O) inverted matrix. contents of input file changed to inverted matrix
+#source/reference: Ryan Gambord's contributions to slack were key to understanding this problem
+#cut portion in particular.
+transpose() {
+
+	inputFile2="TMP$$"
+	cat $1 >$inputFile2
+	
+	#use "head -n 1" to parse each line by line 
+	row=$(head -n 1 $inputFile2 | wc -w)
+	
+	#cut and paste values from row to column using paste -s to tab delimit	 
+	for i in $(seq 1 $row)
+	do
+		cut -f"$i" $inputFile2 | paste -s
+	done
+
+}
+
+#function: mean
+#description: takes an M x N matrix and returns a 1 x N row vector, where first element is the
+# mean of column one, the second is the mean of column two etc.
+#input:M x N matrix in space delimted format M = rows, N = cols
+#output:
+mean() {
+	
+	inputFile3="TMP$$"
+	cat $1 >$inputFile3
 
 
 
@@ -37,10 +70,94 @@ dims() {
 
 
 
-#MAIN SECTION
 
 
-if [[ #1 == "dims" ]]
+
+
+
+
+
+
+
+
+
+
+
+
+	rows=()
+	cols=()
+   
+	sum=0
+	count=0
+	mean=0
+	output=()
+	
+	while read myLine
+	do
+		
+		for i in $myLine;
+		do
+			rows+=($i)
+		done	 	
+
+	done < $1
+	
+		
+
+
+}
+
+#function: add
+#description:
+#input:
+#output:
+
+
+#function: multiply
+#description:
+#input:
+#output:
+
+
+
+
+
+
+
+#error messages
+errorMessage1=$( echo "Incorrect number of arguments entered.")
+
+#check for incorrect number of arguments
+#if [ "$#" -gt 2 ] || [ "$#" -lt 1 ];
+#then
+#	echo "$errorMessage1" >&2
+#	exit 1
+#fi
+
+#check for empty arguments
+
+
+
+#"MAIN" SECTION
+
+#run dims
+if [[ $1 == "dims" ]]
 then
 	dims $2
 fi
+
+#run transpose
+if [[ $1 == "transpose" ]]
+then
+	transpose $2
+fi
+
+#run mean
+if [[ $1 == "mean" ]]
+then
+	mean $2
+fi
+
+
+
+
