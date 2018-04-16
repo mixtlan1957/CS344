@@ -1,0 +1,23 @@
+!/bin/bash
+#Author:Mario Franco-Munoz
+#Script Name: matrix (assignment 1; CS344)
+#Due Date: 4/23/2018
+
+#temp file
+#cat > /tmp/file
+TMP=tmp$$
+
+#trap for delting files upon exit
+#source:
+# https://stackoverflow.com/questions/687014/removing-created-temp-files-in-unexpected-bash-exit
+
+
+#function: dim
+#description:
+#input:
+#output:
+dim() {
+
+
+
+}
