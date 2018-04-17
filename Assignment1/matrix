@@ -56,54 +56,46 @@ transpose() {
 #description: takes an M x N matrix and returns a 1 x N row vector, where first element is the
 # mean of column one, the second is the mean of column two etc.
 #input:M x N matrix in space delimted format M = rows, N = cols
-#output:
+#output: 1 x N matrix with the average of each column
 mean() {
 	
 	inputFile3="TMP$$"
+	tempOutput="xTMP$$2"
 	cat $1 >$inputFile3
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	rows=()
-	cols=()
-   
+	
+	transpose $1 | while read line
+	do
 	sum=0
 	count=0
-	mean=0
-	output=()
-	
-	while read myLine
-	do
-		
-		for i in $myLine;
+	avg=0
+	abs=0
+		for i in $line
 		do
-			rows+=($i)
-		done	 	
+			sum=$((sum + i))
+			count=$((count += 1))
+			#echo $i
+		done
+
+		#check to see if sum was negative	
+		if [ "$sum" -lt 0 ]
+		then
+			abs=0
+		else
+			abs=1
+		fi
+
+		#calculate and  rounded average
+		avg=$(( (sum + (count / 2) * (abs * 2 - 1)) / count))
+		
+		echo  "$avg" >> "$tempOutput"
+ 		
 
 	done < $1
 	
+	transpose $tempOutput
+	
 		
-
 
 }
 
