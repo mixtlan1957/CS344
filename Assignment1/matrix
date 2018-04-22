@@ -11,6 +11,7 @@ TMP=TMP$$
 #source/reference:
 # https://stackoverflow.com/questions/687014/removing-created-temp-files-in-unexpected-bash-exit
 trap "rm -f $TMP*" EXIT
+trap "rm -f $TMP*; exit 1" INT HUP TERM
 
 #function: dims
 #description: displays the dimensions of the input matrix "rows columns"
@@ -19,15 +20,16 @@ trap "rm -f $TMP*" EXIT
 #source/reference:
 #https://stackoverflow.com/questions/8629330/unix-count-of-columns-in-file
 dims() {
+	
 
 	#create temporary file and load in contents of argument to temp file
-	inputFile="TMP$$"
+	inputFile="20TMP$$"
 	cat $1 >$inputFile
 	
 	#prints the dimensions of the array using wc (word count) and head
 	read -r line < $inputFile
 	printf "`wc -l < $inputFile` `head -1 $inputFile | tr '|' ' ' | wc -w`\n"
-
+	rm -f "$inputFile"
 }
 
 #function: transpose
@@ -38,7 +40,7 @@ dims() {
 #cut portion in particular.
 transpose() {
 
-	inputFile2="TMP$$"
+	inputFile2="10TMP$$"
 	cat $1 >$inputFile2
 	
 	#use "head -n 1" to parse each line by line 
@@ -49,6 +51,8 @@ transpose() {
 	do
 		cut -f"$i" $inputFile2 | paste -s
 	done
+	
+	rm -f "$inputFile2"
 
 }
 
@@ -60,11 +64,19 @@ transpose() {
 mean() {
 	
 	inputFile3="TMP$$"
-	tempOutput="xTMP$$2"
-	cat $1 >$inputFile3
+	intermed="intermed$$"
+	tempOutput="tmpOut$$"
+	finalOutput="finOut$$"
+	#cat $1 >"$inputFile3"
 
+	transpose $1 > "$intermed"
+
+	chmod u+rwx $intermed
+	touch $tempOutput
+	chmod u+rwx $tempOutput	
+
+	echo $intermed | while read line
 	
-	transpose $1 | while read line
 	do
 	sum=0
 	count=0
@@ -74,7 +86,7 @@ mean() {
 		do
 			sum=$((sum + i))
 			count=$((count += 1))
-			#echo $i
+		
 		done
 
 		#check to see if sum was negative	
@@ -85,24 +97,133 @@ mean() {
 			abs=1
 		fi
 
-		#calculate and  rounded average
+		#calculate and  rounded average (as per assignment notes)
 		avg=$(( (sum + (count / 2) * (abs * 2 - 1)) / count))
 		
-		echo  "$avg" >> "$tempOutput"
- 		
+		echo "$avg" >> "$tempOutput"
+ 				
 
-	done < $1
-	
-	transpose $tempOutput
+	done < $intermed
 	
 		
-
+	#transpose results via temporary  placeholder file
+	#so we don't have to deal with that annoying trailing \t character
+	transpose "$tempOutput" > "$finalOutput"
+	cat "$finalOutput"
+	
+	#remove temporary files
+	rm -f "$tempOutput"
+	rm -f "$finalOutput"		
+	rm -f "$intermed"
 }
 
 #function: add
-#description:
-#input:
-#output:
+#description: adds two matrices if their dimensions match
+#input:two files containing matricies of the same dimensions
+#output:single matrix that is the sum of the two input matricies
+add() {
+	sumOut="specialTMP$$"
+	temp="1TMP$$"
+	tempCheck1="2TMP$$"
+	tempCheck2="3TMP$$"
+	left="4TMP$$"
+	right="5TMP$$"
+	xfer="6TMP$$"
+	xfer2="7TMP$$"
+
+	touch $sumOut
+	chmod u+rwx $sumOut
+
+	tempCheck1="$(dims $1)"
+	tempCheck2="$(dims $2)"
+
+	#echo "$tempCheck2"
+
+	rowsA=$(cut -d " " -f1 <<< "$tempCheck1")
+	rowsB=$(cut -d " " -f1 <<< "$tempCheck2")
+	colsA=$(cut -d " " -f2 <<< "$tempCheck1")
+	colsB=$(cut -d " " -f2 <<< "$tempCheck2")		
+
+
+	#check to see if input matricies were valid
+	errorMessage3=("Input matricies are not of the same dimensions.")
+	if [[ $rowsA != $rowsB ]] || [[ $colsA != $colsB ]]
+	then
+		echo $errorMessage3 >&2
+		exit 1
+	fi
+
+
+	  
+
+	#add matrix A and B
+	rowTracker=0
+	sum=0
+	#touch "$xfer"
+	#touch "$xfer2"
+	#chmod u+rwx $xfer
+	#chmod u+rwx $xfer2
+	#cat "$1" > "$xfer"
+	#cat "$2" > "$xfer2"
+	#cat $xfer
+	
+	#while
+	#	read $1_line <&3;
+	#	read $2_line <&4;
+	#do
+	for ((k=1; k<=$rowsA; k++))
+	do
+		rowTracker=$((rowTracker + 1))
+		for ((i=1; i<=$colsA; i++))
+		do
+			#strip off the columns
+			cut -f"$i" $1 > "$left"
+			cut -f"$i" $2 > "$right"
+
+			#strip down to the individual number
+			head -n"$rowTracker" $left > "$temp"
+			A=$(tail -n 1 $temp)
+			
+			head -n"$rowTracker" $right > "$temp"
+			B=$(tail -n 1 $temp)
+			
+			
+			#add summed value to output matrix
+			sum=$((A + B))
+			echo -ne "$sum" >> "$sumOut"
+			
+			
+			#check if adding a tab character is applicable
+			if [[ "$i" < "$colsA" ]]
+			then
+				echo -ne "\t" >> "$sumOut"
+			fi
+		done
+
+
+		#check to see if rowTracking variable needs to be reset
+		if [[ "$rowTracker" == "$rowsA" ]]
+		then
+			rowTracker=0
+		fi
+		
+		#append newline character
+		echo -ne "\n" >> "$sumOut"
+		
+	#done 3<$1 4<$2
+	done
+	
+	cat "$sumOut"
+
+	rm -f "$sumOut"
+	rm -f "$tempCheck1"
+	rm -f "$tempCheck2"
+	rm -f "$left"
+	rm -f "$right"
+	rm -f "$temp"
+	rm -f "$xfer"
+	rm -f "$xfer2"
+}
 
 
 #function: multiply
@@ -117,7 +238,8 @@ mean() {
 
 
 #error messages
-errorMessage1=$( echo "Incorrect number of arguments entered.")
+errorMessage1=("Incorrect number of arguments")
+errorMessage2=("Bad command")
 
 #check for incorrect number of arguments
 #if [ "$#" -gt 2 ] || [ "$#" -lt 1 ];
@@ -127,27 +249,51 @@ errorMessage1=$( echo "Incorrect number of arguments entered.")
 #fi
 
 #check for empty arguments
-
+#if [[ $# < 1 ]]
+#then
+	#echo "$errorMessage1">&2
+	#exit 1
+#fi
 
 
 #"MAIN" SECTION
 
-#run dims
-if [[ $1 == "dims" ]]
-then
-	dims $2
-fi
+#$1 "${@:2}"
 
-#run transpose
-if [[ $1 == "transpose" ]]
+
+
+#run dims
+if [[ $1 == "dims" ]] #&& [[ "$#" == "1" ]] 
 then
-	transpose $2
-fi
+	if [[ "$#" > "2" ]] || [[ "$#" < "1" ]]	
+	then
+		echo $errorMessage1 >&2
+		exit 1
+	fi
+	dims "$2"
+#run transpose
+elif [[ $1 == "transpose" ]]
+then
+	transpose "$2"
 
 #run mean
-if [[ $1 == "mean" ]]
+elif [[ $1 == "mean" ]]
 then
-	mean $2
+	mean "$2"
+
+#run add
+elif [[ $1 == "add" ]]
+then
+	if [[ "$#" > 3 ]] || [[ "$#" < 3 ]]
+	then
+		echo $errorMessage1 >&2
+		exit 1
+	fi
+	add "$2" "$3"
+
+else
+	echo "$errorMessage2">&2
+	exit 1	
 fi
 
 
