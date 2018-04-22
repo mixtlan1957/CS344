@@ -11,7 +11,7 @@ TMP=TMP$$
 #source/reference:
 # https://stackoverflow.com/questions/687014/removing-created-temp-files-in-unexpected-bash-exit
 trap "rm -f $TMP*" EXIT
-trap "rm -f $TMP*; exit 1" INT HUP TERM
+#trap "rm -f $TMP*; exit 1" INT HUP TERM
 
 #function: dims
 #description: displays the dimensions of the input matrix "rows columns"
@@ -124,105 +124,100 @@ mean() {
 add() {
 	sumOut="specialTMP$$"
 	temp="1TMP$$"
-	tempCheck1="2TMP$$"
-	tempCheck2="3TMP$$"
+#	tempCheck1="2TMP$$"
+#	tempCheck2="3TMP$$"
 	left="4TMP$$"
 	right="5TMP$$"
-	xfer="6TMP$$"
-	xfer2="7TMP$$"
+#	xfer1="6TMP$$"
+#	xfer2="7TMP$$"
 
-	touch $sumOut
-	chmod u+rwx $sumOut
+	#touch $sumOut
+	#chmod u+rwx $sumOut
 
 	tempCheck1="$(dims $1)"
 	tempCheck2="$(dims $2)"
 
-	#echo "$tempCheck2"
 
 	rowsA=$(cut -d " " -f1 <<< "$tempCheck1")
 	rowsB=$(cut -d " " -f1 <<< "$tempCheck2")
 	colsA=$(cut -d " " -f2 <<< "$tempCheck1")
 	colsB=$(cut -d " " -f2 <<< "$tempCheck2")		
 
+	
+#	dims $1 > $tempCheck1
+#	dims $2 > $tempCheck2
+
+
+#	rowsA=$(cut -d " " -f1 "$tempCheck1")
+#	rowsB=$(cut -d " " -f1 "$tempCheck2")
+#	colsA=$(cut -d " " -f2 "$tempCheck1")
+#	colsB=$(cut -d " " -f2 "$tempCheck2")		
+
+
 
 	#check to see if input matricies were valid
 	errorMessage3=("Input matricies are not of the same dimensions.")
-	if [[ $rowsA != $rowsB ]] || [[ $colsA != $colsB ]]
+	if [[ $rowsA > $rowsB ]] || [[ $colsA > $colsB ]] || [[ $rowsA < $rowsB ]] || [[ $colsA < $colsB ]]
 	then
 		echo $errorMessage3 >&2
 		exit 1
 	fi
 
-
-	  
+#	cat $1 > "$xfer1"
+#	cat $2 > "$xfer2"  
 
 	#add matrix A and B
 	rowTracker=0
 	sum=0
-	#touch "$xfer"
-	#touch "$xfer2"
-	#chmod u+rwx $xfer
-	#chmod u+rwx $xfer2
-	#cat "$1" > "$xfer"
-	#cat "$2" > "$xfer2"
-	#cat $xfer
-	
-	#while
-	#	read $1_line <&3;
-	#	read $2_line <&4;
-	#do
 	for ((k=1; k<=$rowsA; k++))
 	do
-		rowTracker=$((rowTracker + 1))
+		#rowTracker=$((rowTracker + 1))
 		for ((i=1; i<=$colsA; i++))
 		do
 			#strip off the columns
-			cut -f"$i" $1 > "$left"
-			cut -f"$i" $2 > "$right"
+			cut -f"$i" "$1" > "$left"
+			cut -f"$i" "$2" > "$right"
 
 			#strip down to the individual number
-			head -n"$rowTracker" $left > "$temp"
+			head -n"$k" $left > "$temp"
 			A=$(tail -n 1 $temp)
-			
-			head -n"$rowTracker" $right > "$temp"
+			#echo $A
+				
+			head -n"$k" $right > "$temp"
 			B=$(tail -n 1 $temp)
-			
+			#echo $B
 			
 			#add summed value to output matrix
 			sum=$((A + B))
+			#echo $sum
 			echo -ne "$sum" >> "$sumOut"
 			
 			
-			#check if adding a tab character is applicable
-			if [[ "$i" < "$colsA" ]]
+			#check if adding a tab character is applicable: this doesn't work in the auto grader no clue why
+			if [ $i -ne $colsA ]
 			then
 				echo -ne "\t" >> "$sumOut"
 			fi
 		done
-
-
-		#check to see if rowTracking variable needs to be reset
-		if [[ "$rowTracker" == "$rowsA" ]]
-		then
-			rowTracker=0
-		fi
+	
 		
+			
+
+
+
+	
 		#append newline character
-		echo -ne "\n" >> "$sumOut"
-		
-	#done 3<$1 4<$2
+		echo "" >> "$sumOut"
 	done
 	
 	cat "$sumOut"
 
-	rm -f "$sumOut"
+	#rm -f "$sumOut"
 	rm -f "$tempCheck1"
 	rm -f "$tempCheck2"
 	rm -f "$left"
 	rm -f "$right"
 	rm -f "$temp"
-	rm -f "$xfer"
-	rm -f "$xfer2"
 }
 
 
