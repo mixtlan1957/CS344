@@ -124,35 +124,18 @@ mean() {
 add() {
 	sumOut="specialTMP$$"
 	temp="1TMP$$"
-#	tempCheck1="2TMP$$"
-#	tempCheck2="3TMP$$"
 	left="4TMP$$"
 	right="5TMP$$"
-#	xfer1="6TMP$$"
-#	xfer2="7TMP$$"
 
-	#touch $sumOut
-	#chmod u+rwx $sumOut
-
+	#get the dimensions using dims
 	tempCheck1="$(dims $1)"
 	tempCheck2="$(dims $2)"
 
-
+	#split the results from dims into separate variables
 	rowsA=$(cut -d " " -f1 <<< "$tempCheck1")
 	rowsB=$(cut -d " " -f1 <<< "$tempCheck2")
 	colsA=$(cut -d " " -f2 <<< "$tempCheck1")
 	colsB=$(cut -d " " -f2 <<< "$tempCheck2")		
-
-	
-#	dims $1 > $tempCheck1
-#	dims $2 > $tempCheck2
-
-
-#	rowsA=$(cut -d " " -f1 "$tempCheck1")
-#	rowsB=$(cut -d " " -f1 "$tempCheck2")
-#	colsA=$(cut -d " " -f2 "$tempCheck1")
-#	colsB=$(cut -d " " -f2 "$tempCheck2")		
-
 
 
 	#check to see if input matricies were valid
@@ -161,10 +144,7 @@ add() {
 	then
 		echo $errorMessage3 >&2
 		exit 1
-	fi
-
-#	cat $1 > "$xfer1"
-#	cat $2 > "$xfer2"  
+	fi  
 
 	#add matrix A and B
 	rowTracker=0
@@ -181,30 +161,21 @@ add() {
 			#strip down to the individual number
 			head -n"$k" $left > "$temp"
 			A=$(tail -n 1 $temp)
-			#echo $A
 				
 			head -n"$k" $right > "$temp"
 			B=$(tail -n 1 $temp)
-			#echo $B
 			
 			#add summed value to output matrix
 			sum=$((A + B))
-			#echo $sum
 			echo -ne "$sum" >> "$sumOut"
 			
 			
-			#check if adding a tab character is applicable: this doesn't work in the auto grader no clue why
+			#check if adding a tab character is applicable: this doesn't work in the auto grader using [[]]: no clue why
 			if [ $i -ne $colsA ]
 			then
 				echo -ne "\t" >> "$sumOut"
 			fi
 		done
-	
-		
-			
-
-
-
 	
 		#append newline character
 		echo "" >> "$sumOut"
@@ -222,39 +193,100 @@ add() {
 
 
 #function: multiply
-#description:
-#input:
-#output:
+#description: adds two matrices if the deminsions are compatible
+#input: two files containg matricies of the correct dimensions M x N, N x A
+#output: single matrix that is the product of the two input matricies
+multiply() {
+	prodOut="prodTMP$$"
+	temp="TMP$$99"	
+	transB="TMP$$98"
+	left="TMP$$96"
+	right="TMP$$97"	
 
+	#get the dimensions using dims
+	dimsCheck1="$(dims $1)"
+	dimsCheck2="$(dims $2)"
 
+	#split the results from dims into separate variables
+	rowsA=$(cut -d " " -f1 <<< "$dimsCheck1")
+	rowsB=$(cut -d " " -f1 <<< "$dimsCheck2")
+	colsA=$(cut -d " " -f2 <<< "$dimsCheck1")
+	colsB=$(cut -d " " -f2 <<< "$dimsCheck2")
 
+	#validate: make sure that the number ofcolumns in matrix A match the number of columns in matrix B
+	errorMessage4=("Number of columns in matrix A do not match number of rows in matrix B")
+	if [ $colsA -ne $rowsB ]
+	then
+		echo $errorMessage4 >&2
+		exit 1
+	fi
 
+	#transpose $2 > $transB
+	
+	#multiply matrix A and B
+	innerSum=0
+	prod=0
+	colStrip=0
+	rowStrip=0
+	echo $rowsA
+	echo $rowsB	
 
+	for ((i=1; i<=$rowsA; i++))
+	do
+		for((k=1; k<=$colsB; k++))
+		do
+		innerSum=0
+			for((j=1; j<=$colsA; j++))
+			do
+				#get first number: strip off the column of matrix A
+				cut -f"$j" "$1" > "$left"
+				
+				#strip down to the individual number(matrix A row: i)
+				head -n"$i" "$left" > "$temp"
+				A=$(tail -n 1 $temp)
+				
+
+								
+				#get get second number:(matrix B col: k)
+				cut -f"$k" "$2" > "$right"
+
+				#strip down to the individual number
+				head -n"$j" "$right" > "$temp"
+				B=$(tail -n 1 $temp)						
+				
+				
+				prod=$((A * B))
+
+			
+				innerSum=$((innerSum + prod))
+
+			done
+
+			echo -ne $innerSum >> $prodOut
+
+			if [ $k -ne $colsB ]
+			then
+				echo -ne "\t" >> "$prodOut"
+			fi
+		done
+		
+		#add the new line
+		echo "" >> "$prodOut"
+
+	done
+
+	cat $prodOut
+
+	rm -f "$prodOut"
+}
 
 
 #error messages
 errorMessage1=("Incorrect number of arguments")
 errorMessage2=("Bad command")
 
-#check for incorrect number of arguments
-#if [ "$#" -gt 2 ] || [ "$#" -lt 1 ];
-#then
-#	echo "$errorMessage1" >&2
-#	exit 1
-#fi
-
-#check for empty arguments
-#if [[ $# < 1 ]]
-#then
-	#echo "$errorMessage1">&2
-	#exit 1
-#fi
-
 
 #"MAIN" SECTION
-
-#$1 "${@:2}"
-
 
 
 #run dims
@@ -285,6 +317,15 @@ then
 		exit 1
 	fi
 	add "$2" "$3"
+#run multiply
+elif [[ $1 == "multiply" ]]
+then
+	if [[ "$#" > 3 ]] || [[ "$#" < 3 ]]
+	then
+		echo $errorMessage1 >&2
+		exit 1
+	fi
+	multiply "$2" "$3"
 
 else
 	echo "$errorMessage2">&2
