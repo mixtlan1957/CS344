@@ -118,7 +118,7 @@ void createRooms() {
 		//create room file, append name to file
 		FILE *roomFile;
 		roomFile = fopen(filePath, "w");
-		fprintf(roomFile, "ROOM Name: %s", roomNames[roomAssignment[i]]);
+		fprintf(roomFile, "ROOM Name: %s\n", roomNames[roomAssignment[i]]);
 		fclose(roomFile);
 
 		//randomly assign room type
@@ -236,8 +236,9 @@ void addRandomConnection() {
 			}
 
 			//final check: ensure that the connection doesn't exist already
-			if (connectivityMap[room1][room2] == 0) {
+			if (connectivityMap[room1][room2] == 0 && connectivityMap[room2][room1] == 0) {
 				connectivityMap[room1][room2] = 1;
+				connectivityMap[room2][room1] = 1;
 				connectionMade = 1;
 
 				//update the number of connections connected rooms have
