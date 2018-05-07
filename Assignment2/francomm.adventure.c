@@ -18,9 +18,9 @@
 #include <dirent.h> //for navigating directories
 
 //GLOBAL VARIABLES
-const int ROOM_COUNT = 7;           //number of room files to look through
-const int MAX_CONNECTIONS = 6;      //WARNING: max connections must be less than 10, code must be modified otherwise
-const int MAX_FILE_NAME_LENGTH = 9 //max file length + null terminator = 9
+#define ROOM_COUNT 7           //number of room files to look through
+#define MAX_CONNECTIONS 6      //WARNING: max connections must be less than 10, code must be modified otherwise
+#define MAX_FILE_NAME_LENGTH 9    //max file length + null terminator = 9
 char roomsLoaded[ROOM_COUNT][56];     //for storing the rooms loaded in a run instance of this file
 char roomConnections[ROOM_COUNT][MAX_CONNECTIONS][56];	 //for storing the associated connections
 const char *roomTypes[3] = {"START_ROOM", "MID_ROOM", "END_ROOM"};
@@ -34,7 +34,7 @@ char *pathTaken[256];
 //function prototypes
 void newestDir(char*, int);
 void loadRooms();
-
+void test();
 
 /*
 *
@@ -65,7 +65,7 @@ void loadRooms() {
 	FILE *readFile;			//file read object
 	char workingDir[256];   //variable for determinine most recent directory
 	char filePath[256];		//full file path of different room files
-	int i, j, k, temp;
+	int k;//, j, i, temp;
 	DIR *dirLoadFrom;
 	struct dirent *fileInDir;
 	int fileIndex = 0;      //tracking variable for determining which file has been read
@@ -101,7 +101,7 @@ void loadRooms() {
 			readFile = fopen(fileInDir->d_name, "r");			
 			if (readFile == NULL) {
 				printf("Room file could not be oppend for some reason...\n");
-				exit 1;
+				exit(1);
 			}
 
 			//store file name
@@ -109,7 +109,7 @@ void loadRooms() {
 			strcpy(roomsLoaded[fileIndex], fileInDir->d_name);  //files should not have suffix so no need for strncpy
 
 			//call getline to advance to next line
-			getLine(&lineEntered, &bufferSize, readFile);
+			getline(&lineEntered, &bufferSize, readFile);
  			
 			k = 0;
 			//store connections in our 3D global variable array [room index][connection index][name of connection]
@@ -162,12 +162,12 @@ void loadRooms() {
 				roomTypeAssign[fileIndex] = 0;
 			}
 			//or if room is a mid room
-			else if (strcmp(subS, roomTypes[1] == 0)) {
+			else if (strcmp(subS, roomTypes[1]) == 0) {
 				
 				roomTypeAssign[fileIndex] = 1;
 			}
 			//or if room is end room
-			else if (strcmp(subS, roomTypes[2] == 0)) {
+			else if (strcmp(subS, roomTypes[2]) == 0) {
 
 				roomTypeAssign[fileIndex] = 2;
 			} 
@@ -251,13 +251,38 @@ void newestDir(char *inputString, int bufferSize) {
 *Inputs:
 *Output: 
 */
-
+void test() {
+	int i, j;
+	printf("Testing rooms loaded...\n");
+	for (i = 0; i < ROOM_COUNT; i++) {
+		printf("%s\n", roomsLoaded[i]);
+	}
+	printf("\nTesting room types...\n");
+	for (i = 0; i < ROOM_COUNT; i++) {
+		printf("%s\n", roomTypes[roomTypeAssign[i]]);
+	}
+	printf("\nTesting connections...\n");
+	for (i = 0; i < ROOM_COUNT; i++) {
+		printf("Printing the connections for room %d\n", i);
+		for (j = 0; j < MAX_CONNECTIONS; j++) {
+			printf("Connection 1: %s\n", roomConnections[i][j]);
+		}
+	}
+}
 
 
 
 int main() {
-	loadRooms();
+	//initialize 3D array (roomConnections)
+	int i , j;
+	for(i = 0; i < ROOM_COUNT; i++) {
+		for (j = 0; j < MAX_CONNECTIONS; j++) {
+			memset(roomConnections[i][j], '\0', sizeof(roomConnections[i][j]));			
+		}
+	}
 
+	loadRooms();
+	void test();
 	return 0;
 }
 
