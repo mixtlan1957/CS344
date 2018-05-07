@@ -23,8 +23,13 @@
 #define MAX_FILE_NAME_LENGTH 9    //max file length + null terminator = 9
 char roomsLoaded[ROOM_COUNT][56];     //for storing the rooms loaded in a run instance of this file
 char roomConnections[ROOM_COUNT][MAX_CONNECTIONS][56];	 //for storing the associated connections
+int connectionCount[ROOM_COUNT];      //for tracking how many connections each room has
 const char *roomTypes[3] = {"START_ROOM", "MID_ROOM", "END_ROOM"};
 int roomTypeAssign[ROOM_COUNT];
+int _startRoom;
+int _endRoom;
+char victoryPath[999][20]; 
+
 
 int stepCount = 0;
 char *pathTaken[256];
@@ -34,7 +39,40 @@ char *pathTaken[256];
 //function prototypes
 void newestDir(char*, int);
 void loadRooms();
+void gameLoop();
+int whichRoom(char*);
+int containsCon(char*);
 void test();
+
+
+/*
+*
+*Description:
+*
+*Inputs:
+*Outputs:
+*/
+int whichRoom(char *roomNameIn) {
+	int i;
+
+	for(i = 0; i < ROOM_COUNT; i++) {
+		if (strcmp(roomNameIn, roomsLoaded[i]) == 0) {
+			return i;
+		}		
+	} 
+	return -1;
+}
+
+/*
+*
+*Description:
+*
+*Inputs:
+*Outputs:
+*/
+
+
+
 
 /*
 *
@@ -44,20 +82,83 @@ void test();
 *Output: 
 */
 void gameLoop() {
+	size_t bufferSize = 0;
+	char* lineEntered = NULL;
+	int i;
+	int currentRoom;
+	int correctInput;
+	int errorCounter;
+	int stepCounter;
 
+	//set currentRoom to the room that is the "START_ROOM"
+	currentRoom = _startRoom;
 
+	errorCounter = 0;
+	stepCounter = 0;
+	while(currentRoom != _endRoom || errorCounter > 0) {
+		if (errorCounter > 0) {
+			printf("HUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n\n");
+		}
+		errorCounter = 0;
+		printf("CURRENT LOCATION: %s\n", roomsLoaded[currentRoom]);
+		printf("POSSIBLE CONNECTIONS: ");
+		
+		//loop and print possible connections
+		for (i = 0; i < connectionCount[currentRoom] - 1; i++) {
+			printf("%s, ", roomConnections[currentRoom][i]);
+		}
+		printf("%s.\n", roomConnections[currentRoom][i]);
 
+		//get user input
+		printf("WHERE TO? >");
+		getline(&lineEntered, &bufferSize, stdin);
+		printf("\n");
+		
+		//remove potential end-of-line characters from input
+		lineEntered[strcspn(lineEntered, "\r\n")] = 0;
+
+		//iterate over the room connections current room has, and validate user input
+		correctInput = 0;
+		i = 0;
+		while(i < connectionCount[currentRoom] && correctInput == 0) {
+			if(strcmp(lineEntered, roomConnections[currentRoom][i]) == 0) {
+				correctInput = 1;	
+				currentRoom = whichRoom(lineEntered);
+				stepCounter++;
+				if (stepCounter >999) {
+					printf("You reached the step limit of 999!\n");
+					exit(1);
+				}
+				else {
+					memset(victoryPath[stepCounter - 1], '\0', sizeof(victoryPath[stepCounter - 1])); 
+					strcpy(victoryPath[stepCounter - 1], lineEntered);
+				}		
+			}
+			i++;
+		}
+		if (correctInput != 1) {
+			errorCounter++;
+		}
+		free(lineEntered);
+		lineEntered = NULL;
+	}
+
+	//end of game
+	printf("YOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
+	printf("YOU TOOK %d STEPS. YOUR PATH TO VICTORY WAS:\n", stepCounter);
+	for (i = 0; i < stepCounter; i++) {
+		printf("%s\n", victoryPath[i]);
+	}	
 
 }
 
 
 
 /*
-*
-*Description: 
-*
-*Inputs:
-*Output: 
+*loadRooms
+*Description: this function loads the different room files located in the most recently created ONID.rooms.PID 
+* directory and stores their data in the global array variables.
+*Inputs: (file input: room files)
 */
 void loadRooms() {
 	size_t bufferSize = 0;      //for parsing each line (from file)
@@ -65,7 +166,7 @@ void loadRooms() {
 	FILE *readFile;			//file read object
 	char workingDir[256];   //variable for determinine most recent directory
 	char filePath[256];		//full file path of different room files
-	int k;//, j, i, temp;
+	int k;
 	DIR *dirLoadFrom;
 	struct dirent *fileInDir;
 	int fileIndex = 0;      //tracking variable for determining which file has been read
@@ -117,60 +218,36 @@ void loadRooms() {
 
 
 			//call getline to advance to next line
-			getline(&lineEntered, &bufferSize, readFile);
- 			
+			getline(&lineEntered, &bufferSize, readFile); 		
+	
 			k = 0;
 			//store connections in our 3D global variable array [room index][connection index][name of connection]
 			while(strncmp(lineEntered, "ROOM TYPE:", 10) != 0) {
 				//reset line entered
 				free(lineEntered);
 				lineEntered = NULL;
-				
 				//get the line containing the connection info
 				getline(&lineEntered, &bufferSize, readFile);
-			
-				//test
-				printf("%s\n", lineEntered);
+							
+				if (strncmp(lineEntered, "ROOM TYPE:", 10) != 0) {
 	
-				//get the substring
-				memset(subS, '\0', sizeof(subS));
-				sscanf(lineEntered, "%*s, %*s, %s", subS);
-				printf("Connection Name: %s\n", subS);
-				memset(roomConnections[fileIndex][k], '\0', sizeof(roomConnections[fileIndex][k]));
-				strcpy(roomConnections[fileIndex][k], subS);	
+					//get the substring
+					memset(subS, '\0', sizeof(subS));
+					sscanf(lineEntered, "%*s %*s %s", subS);
+					memset(roomConnections[fileIndex][k], '\0', sizeof(roomConnections[fileIndex][k]));
+					strcpy(roomConnections[fileIndex][k], subS);	
+					connectionCount[fileIndex]++; 			//number of connections is tracked separately
 
-				/*
-				//get the substring
-				temp = 14;  //start index if connection count is less than 2 digits "CONNECTION X: "
-				memset(roomsLoaded[fileIndex][k], '\0', sizeof(roomsLoaded[fileIndex][k]));
-			    
-				//copy substring one character at time
-				j = 0; 
-				while(roomsLoaded[fileIndex][k][j] != '\n') {
-					roomsLoaded[fileIndex][k][j] = lineEntered[temp + j];
-					j++;
-				}
-				roomsLoaded[fileIndex][j] = '\0';	
-				k++;
-				*/
-				k++;				
+					k++;
+				}				
 			}
 			//store room type
 			memset(subS, '\0', sizeof(subS));
-			sscanf(lineEntered, "%*s %*s %s", subS);		
-		
-			/*
-			temp = 11; //start of index after "ROOM TYPE: "
-			j = 0;
-		    memset(subS, '\0', sizeof(subS));
-			for (j = temp; j < strlen(lineEntered) - 1; j++) {
-				subS[j - temp] = lineEntered[j];
-			}
-			*/ 	
+			sscanf(lineEntered, "%*s %*s %s", subS);			
 
 			//determine if room is a start room
 			if (strcmp(subS, roomTypes[0]) == 0) {
-				
+				_startRoom = fileIndex;			
 				roomTypeAssign[fileIndex] = 0;
 			}
 			//or if room is a mid room
@@ -180,7 +257,7 @@ void loadRooms() {
 			}
 			//or if room is end room
 			else if (strcmp(subS, roomTypes[2]) == 0) {
-
+				_endRoom = fileIndex;
 				roomTypeAssign[fileIndex] = 2;
 			} 
 			else {
@@ -215,11 +292,9 @@ void loadRooms() {
 
 
 /*
-*
-*Description: 
-*
+*newestDir
 *Inputs: takes an empty string with a buffer size of 256
-*Output:
+*Output: stores the most recently created (myonid).rooms.(pid) directory in the input string
 *Sources Citation: The code for this function was heavily based on Professor Brewster's class notes 
 * returning strings based on: https://stackoverflow.com/questions/1496313/returning-c-string-from-a-function/1496328
 */
@@ -275,7 +350,8 @@ void test() {
 	}
 	printf("\nTesting connections...\n");
 	for (i = 0; i < ROOM_COUNT; i++) {
-		printf("Printing the connections for room %d\n", i);
+		printf("Number of connections: %d\n", connectionCount[i]);
+		printf("Printing the connections for room %s\n", roomsLoaded[i]);
 		for (j = 0; j < MAX_CONNECTIONS; j++) {
 			printf("Connection %d: %s\n", j+1, roomConnections[i][j]);
 		}
@@ -291,10 +367,12 @@ int main() {
 		for (j = 0; j < MAX_CONNECTIONS; j++) {
 			memset(roomConnections[i][j], '\0', sizeof(roomConnections[i][j]));			
 		}
+		connectionCount[i] = 0;   //initialize number of connections at 0
 	}
 
 	loadRooms();
-	test();
+	//test();
+	gameLoop();
 	return 0;
 }
 
