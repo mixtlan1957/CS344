@@ -69,13 +69,13 @@ void createRooms() {
 	//declare dir name
 	char dirName[45];
 	memset(dirName, '\0', 45);
-	strcpy(dirName, "francomm.room.");
+	strcpy(dirName, "francomm.rooms.");
 
 	//concatenate the pid and directory name
 	strcat(dirName, convPID);
 
 	//create directory
-	int result = mkdir(dirName, 0755);
+	int result = mkdir(dirName, 0777);
 	if (result == -1) {
 		printf("Error creating directory.\n");
 	}
@@ -136,6 +136,16 @@ void createRooms() {
 		}
 		else {
 			roomType[i] = 1;	
+		}
+		//if we are at room 6, and we still don't have a start room, forcefully make it a start room
+		if (i == 5 && startRoomSelected != 1) {
+			roomType[i] = 0;
+			startRoomSelected = 1;
+		}
+		//if we are at room 7, and we still don't have a end room, forcefully make it an end room
+		if (i == 6 && endRoomSelected != 1) {
+			roomType[i] = 2;
+			endRoomSelected = 1;
 		}
 
 	}

@@ -73,32 +73,39 @@ void loadRooms() {
 
 	//determine which directory to load rooms from
 	newestDir(workingDir, sizeof(workingDir));
-
 	
-	//load data from each room
-	//set the directoy name with slashes and file name(i.e. ./dirName/)
+	//open directory to search in
 	memset(filePath, '\0', sizeof(filePath));
 	filePath[0] = '.';
 	filePath[1] = '/';
 	strcat(filePath, workingDir);
-	
-	//open directory to search in
 	dirLoadFrom = opendir(filePath);
+
+	//test
+	printf("%s\n", filePath);	
 
 	//start reading each file within the most recent directory
 	if (dirLoadFrom > 0) {
 		while ((fileInDir = readdir(dirLoadFrom)) != NULL) {
 			
 			//skip over sub directories and parent directory
-			if (!strcmp(fileInDir->d_name, "..")) {
+			if (strcmp(fileInDir->d_name, "..") == 0) {
 				continue;
 			}
-			if (!strcmp(fileInDir->d_name, ".")) { //this statement shouldn't be necessary
+			if (strcmp(fileInDir->d_name, ".") == 0) {
 				continue;
 			}
+		
+			//establish the full file path that is to be loaded (now including the name of the file as well)
+			memset(filePath, '\0', sizeof(filePath));
+			filePath[0] = '.';
+			filePath[1] = '/';
+			strcat(filePath, workingDir);
+			strcat(filePath, "/");
+			strcat(filePath, fileInDir->d_name);
 
 			//open file in read mode only
-			readFile = fopen(fileInDir->d_name, "r");			
+			readFile = fopen(filePath, "r");			
 			if (readFile == NULL) {
 				printf("Room file could not be oppend for some reason...\n");
 				exit(1);
@@ -107,6 +114,7 @@ void loadRooms() {
 			//store file name
 			memset(roomsLoaded[fileIndex], '\0', sizeof(roomsLoaded[fileIndex]));
 			strcpy(roomsLoaded[fileIndex], fileInDir->d_name);  //files should not have suffix so no need for strncpy
+
 
 			//call getline to advance to next line
 			getline(&lineEntered, &bufferSize, readFile);
@@ -120,10 +128,14 @@ void loadRooms() {
 				
 				//get the line containing the connection info
 				getline(&lineEntered, &bufferSize, readFile);
-				
+			
+				//test
+				printf("%s\n", lineEntered);
+	
 				//get the substring
 				memset(subS, '\0', sizeof(subS));
 				sscanf(lineEntered, "%*s, %*s, %s", subS);
+				printf("Connection Name: %s\n", subS);
 				memset(roomConnections[fileIndex][k], '\0', sizeof(roomConnections[fileIndex][k]));
 				strcpy(roomConnections[fileIndex][k], subS);	
 
@@ -265,7 +277,7 @@ void test() {
 	for (i = 0; i < ROOM_COUNT; i++) {
 		printf("Printing the connections for room %d\n", i);
 		for (j = 0; j < MAX_CONNECTIONS; j++) {
-			printf("Connection 1: %s\n", roomConnections[i][j]);
+			printf("Connection %d: %s\n", j+1, roomConnections[i][j]);
 		}
 	}
 }
@@ -282,7 +294,7 @@ int main() {
 	}
 
 	loadRooms();
-	void test();
+	test();
 	return 0;
 }
 
