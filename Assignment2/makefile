@@ -4,7 +4,7 @@ rooms: francomm.buildrooms.c
 	gcc -g -Wall -o rooms francomm.buildrooms.c 
 
 adventure: francomm.adventure.c
-	gcc -g -Wall -o adventure francomm.adventure.c
+	gcc -g -Wall -lpthread -o adventure francomm.adventure.c
 
 
 clean:

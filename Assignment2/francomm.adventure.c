@@ -16,6 +16,8 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <dirent.h> //for navigating directories
+#include <time.h>
+#include <pthread.h>
 
 //GLOBAL VARIABLES
 #define ROOM_COUNT 7           //number of room files to look through
@@ -29,28 +31,27 @@ int roomTypeAssign[ROOM_COUNT];
 int _startRoom;
 int _endRoom;
 char victoryPath[999][20]; 
-
-
 int stepCount = 0;
-char *pathTaken[256];
-
-
+pthread_mutex_t mutex;
 
 //function prototypes
 void newestDir(char*, int);
 void loadRooms();
 void gameLoop();
 int whichRoom(char*);
-int containsCon(char*);
+void pthreads();
+void* displayTime();
+void* writeTime();
 void test();
 
 
 /*
-*
-*Description:
-*
-*Inputs:
-*Outputs:
+*whichRoom
+*Description: short helper function that associates the string of a room name to the number stored/identifying
+* that room
+* 
+*Inputs: name of the room to have its index identified for
+*Outputs: room index
 */
 int whichRoom(char *roomNameIn) {
 	int i;
@@ -64,22 +65,99 @@ int whichRoom(char *roomNameIn) {
 }
 
 /*
+*displayTime
+*Description: reads the time stored as a string in the "currentTime.txt" file and displays it in I/O
 *
-*Description:
-*
-*Inputs:
-*Outputs:
+*preconditions: requires that the currentTimme.txt file exist and have the time written to it prior to calling
+* displayTime
+*Outputs:(I/O: displays stored time string)
 */
+void* displayTime() {
+	pthread_mutex_lock(&mutex);
 
+	char *readBuffer = NULL;
+	FILE *timeFile;
+	size_t bufferSize = 0;
+	
+	timeFile = fopen("currentTime.txt", "r");
+	if (timeFile == NULL) {
+		printf("There was an error opening \"currentTime.txt\"\n");
+	}
+	getline(&readBuffer, &bufferSize, timeFile);
+	printf("\n%s\n\n\n", readBuffer);
 
-
+	free(readBuffer);
+	readBuffer = NULL; 
+	
+	pthread_mutex_unlock(&mutex);
+	return NULL; 
+}
 
 /*
+*writeTime
+*Description: writes the current time to "currentTime.txt" in the hr:mm(am/pm), weekday, month day, year format
 *
-*Description: 
-*
-*Inputs:
-*Output: 
+*Outputs:creates/truncates "currentTime.txt"
+*Sources Cited: https://linux.die.net/man/3/strftime 
+*/
+void* writeTime() {
+	//pthread_mutex_lock(&mutex);
+
+	FILE *timeFile;
+	char buffer[256];
+	time_t t;
+	struct tm *tmp;
+	t = time(NULL);
+	tmp = localtime(&t); 
+
+	
+	memset(buffer, '\0', sizeof(buffer));
+	strftime(buffer, sizeof(buffer), "%I:%M%P, %A, %B %e, %Y", tmp);
+
+	timeFile = fopen("currentTime.txt", "w");
+	fprintf(timeFile, "%s", buffer);
+	fclose(timeFile);
+	
+	pthread_mutex_unlock(&mutex);
+
+	return NULL;	
+}
+
+/*
+*pthreads
+*Description: manages the thread that controls the writeTime and displayTime functionn
+*Sources Cited: https://www.cc.gatech.edu/classes/AY2010/cs4210_fall/lectures/04-PthreadsIntro.pdf
+*/
+void pthreads() {
+
+	pthread_t thread1;
+	pthread_t thread2;
+	pthread_mutex_init(&mutex, NULL);   //initialize gobal mutex variable
+	pthread_mutex_lock(&mutex);
+
+	if (pthread_create(&thread1, NULL, writeTime, NULL) != 0) {
+		fprintf(stderr, "Unable to create producer thread\n");
+		exit(1);
+	}
+	if (pthread_create(&thread2, NULL, displayTime, NULL) != 0) {
+		fprintf(stderr, "Unable to create consumer thread\n");
+		exit(1);
+	}
+
+	pthread_join(thread1, NULL);
+	pthread_join(thread2, NULL);
+
+	//pthread_mutex_unlock(&mutex);
+	pthread_mutex_destroy(&mutex);
+
+
+}
+
+/*
+*gameLoop
+*Description: primary driver for adventure game. Loops through user input until user reaches final room
+*or reaches the step limit.
+*Sources:used to help get input from user: https://stackoverflow.com/questions/29397719/c-getline-and-strcmp-issue 
 */
 void gameLoop() {
 	size_t bufferSize = 0;
@@ -117,27 +195,34 @@ void gameLoop() {
 		//remove potential end-of-line characters from input
 		lineEntered[strcspn(lineEntered, "\r\n")] = 0;
 
-		//iterate over the room connections current room has, and validate user input
-		correctInput = 0;
-		i = 0;
-		while(i < connectionCount[currentRoom] && correctInput == 0) {
-			if(strcmp(lineEntered, roomConnections[currentRoom][i]) == 0) {
-				correctInput = 1;	
-				currentRoom = whichRoom(lineEntered);
-				stepCounter++;
-				if (stepCounter >999) {
-					printf("You reached the step limit of 999!\n");
-					exit(1);
-				}
-				else {
-					memset(victoryPath[stepCounter - 1], '\0', sizeof(victoryPath[stepCounter - 1])); 
-					strcpy(victoryPath[stepCounter - 1], lineEntered);
-				}		
-			}
-			i++;
+		//check to see if time was called
+		if (strcmp(lineEntered, "time") == 0) {
+			pthreads();
+			correctInput = 1;
 		}
-		if (correctInput != 1) {
-			errorCounter++;
+		else {
+			//iterate over the room connections current room has, and validate user input
+			correctInput = 0;
+			i = 0;
+			while(i < connectionCount[currentRoom] && correctInput == 0) {
+				if(strcmp(lineEntered, roomConnections[currentRoom][i]) == 0) {
+					correctInput = 1;	
+					currentRoom = whichRoom(lineEntered);
+					stepCounter++;
+					if (stepCounter >998) {
+						printf("You reached the step limit of 999!\n");
+						exit(1);
+					}
+					else {
+						memset(victoryPath[stepCounter - 1], '\0', sizeof(victoryPath[stepCounter - 1])); 
+						strcpy(victoryPath[stepCounter - 1], lineEntered);
+					}		
+				}
+				i++;
+			}
+			if (correctInput != 1) {
+				errorCounter++;
+			}
 		}
 		free(lineEntered);
 		lineEntered = NULL;
@@ -194,6 +279,9 @@ void loadRooms() {
 				continue;
 			}
 			if (strcmp(fileInDir->d_name, ".") == 0) {
+				continue;
+			}
+			if (strcmp(fileInDir->d_name, "currentTime.txt") == 0) {
 				continue;
 			}
 		
@@ -269,12 +357,6 @@ void loadRooms() {
 			//increment the file index
 			fileIndex++;
 
-			//if extra files were somehow added to the file path, exit
-			if (fileIndex > ROOM_COUNT + 1) {
-
-				exit(1);
-			}
-
 			//reset lineEntered
 			free(lineEntered);
 			lineEntered = NULL;
@@ -332,11 +414,8 @@ void newestDir(char *inputString, int bufferSize) {
 }
 
 /*
-*
-*Description: 
-*
-*Inputs:
-*Output: 
+*test
+*Description: not required part of program, this function only serves to test the values stored in global array
 */
 void test() {
 	int i, j;
@@ -369,6 +448,7 @@ int main() {
 		}
 		connectionCount[i] = 0;   //initialize number of connections at 0
 	}
+	
 
 	loadRooms();
 	//test();
