@@ -220,7 +220,7 @@ void gameLoop() {
 	for (i = 0; i < stepCounter; i++) {
 		printf("%s\n", victoryPath[i]);
 	}	
-
+	pthread_join(thread1, NULL);
 }
 
 
