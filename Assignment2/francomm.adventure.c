@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>  //for reading files and getting statistics (last directory created)
+#include <unistd.h>  //for reading files and getting statistics (last directory created) (and putting things to sleep)
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -73,8 +73,7 @@ int whichRoom(char *roomNameIn) {
 *Outputs:(I/O: displays stored time string)
 */
 void* displayTime() {
-	pthread_mutex_lock(&mutex);  //lock the consumer thread
-
+	pthread_mutex_lock(&mutex);
 	char *readBuffer = NULL;
 	FILE *timeFile;
 	size_t bufferSize = 0;
@@ -89,9 +88,8 @@ void* displayTime() {
 
 	free(readBuffer);
 	readBuffer = NULL; 
-	
 	pthread_mutex_unlock(&mutex);
-	return NULL;           //type void* is what pthread_create needs, so void* is what it will get
+	return NULL;
 }
 
 /*
@@ -102,7 +100,7 @@ void* displayTime() {
 *Sources Cited: https://linux.die.net/man/3/strftime 
 */
 void* writeTime() {
-
+	pthread_mutex_lock(&mutex);
 	FILE *timeFile;
 	char buffer[256];
 	time_t t;
@@ -115,44 +113,13 @@ void* writeTime() {
 	strftime(buffer, sizeof(buffer), "%I:%M%P, %A, %B %e, %Y", tmp);
 	
 	//store the result in the currentTime.txt file
-	timeFile = fopen("currentTime.txt", "w");
+	timeFile = fopen("currentTime.txt", "w+");
 	fprintf(timeFile, "%s", buffer);
 	fclose(timeFile);
 	
-	//this function is the parent node, unlock here
 	pthread_mutex_unlock(&mutex);
-
+	sleep(5);
 	return NULL;	
-}
-
-/*
-*pthreads
-*Description: manages the thread that controls the writeTime and displayTime functionn
-*Sources Cited: https://www.cc.gatech.edu/classes/AY2010/cs4210_fall/lectures/04-PthreadsIntro.pdf
-*/
-void pthreads() {
-
-	pthread_t thread1;
-	pthread_t thread2;
-	pthread_mutex_init(&mutex, NULL);   //initialize gobal mutex variable
-	pthread_mutex_lock(&mutex);  //lock the mutex and leave read for the parent to use
-
-	//create the threads and join them
-	if (pthread_create(&thread1, NULL, writeTime, NULL) != 0) {
-		fprintf(stderr, "Unable to create producer thread\n");
-		exit(1);
-	}
-	if (pthread_create(&thread2, NULL, displayTime, NULL) != 0) {
-		fprintf(stderr, "Unable to create consumer thread\n");
-		exit(1);
-	}
-
-	pthread_join(thread1, NULL);
-	pthread_join(thread2, NULL);
-
-	pthread_mutex_destroy(&mutex);
-
-
 }
 
 /*
@@ -160,6 +127,7 @@ void pthreads() {
 *Description: primary driver for adventure game. Loops through user input until user reaches final room
 *or reaches the step limit.
 *Sources:used to help get input from user: https://stackoverflow.com/questions/29397719/c-getline-and-strcmp-issue 
+*info on pthreads:  https://www.cc.gatech.edu/classes/AY2010/cs4210_fall/lectures/04-PthreadsIntro.pdf
 */
 void gameLoop() {
 	size_t bufferSize = 0;
@@ -169,6 +137,14 @@ void gameLoop() {
 	int correctInput;
 	int errorCounter;
 	int stepCounter;
+	pthread_t thread2; 			//declare second thread
+
+	//start the write thread - will continously write time to a file until interrupted.
+	pthread_t thread1;
+	if (pthread_create(&thread1, NULL, writeTime, NULL) != 0) {
+		fprintf(stderr, "Unable to create producer thread\n");
+		exit(1);
+	}
 
 	//set currentRoom to the room that is the "START_ROOM"
 	currentRoom = _startRoom;
@@ -199,7 +175,15 @@ void gameLoop() {
 
 		//check to see if time was called
 		if (strcmp(lineEntered, "time") == 0) {
-			pthreads();
+			//if "time" was called, unlock the mutex
+			//create the displayTime thread
+			pthread_mutex_unlock(&mutex);	
+			if (pthread_create(&thread2, NULL, displayTime, NULL) != 0) {
+				fprintf(stderr, "Unable to create consumer thread\n");
+				exit(1);
+			}
+			pthread_join(thread2, NULL);  //hold read thread until it finishes it's output
+
 			correctInput = 1;
 		}
 		else {
@@ -268,9 +252,6 @@ void loadRooms() {
 	filePath[1] = '/';
 	strcat(filePath, workingDir);
 	dirLoadFrom = opendir(filePath);
-
-	//test
-	printf("%s\n", filePath);	
 
 	//start reading each file within the most recent directory
 	if (dirLoadFrom > 0) {
@@ -366,6 +347,7 @@ void loadRooms() {
 			//close file
 			fclose(readFile);
 
+
 		}
 	}
 			
@@ -451,9 +433,18 @@ int main() {
 		connectionCount[i] = 0;   //initialize number of connections at 0
 	}
 	
+	//initialize global mutex variable
+	pthread_mutex_init(&mutex, NULL);	
 
-	loadRooms();
-	gameLoop();
+	loadRooms();	 //load data
+	gameLoop();		//run game
+
+	
+	pthread_mutex_unlock(&mutex);
+	pthread_mutex_destroy(&mutex);
+	pthread_exit(NULL);
+
+
 	return 0;
 }
 
