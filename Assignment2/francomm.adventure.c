@@ -73,12 +73,13 @@ int whichRoom(char *roomNameIn) {
 *Outputs:(I/O: displays stored time string)
 */
 void* displayTime() {
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&mutex);  //lock the consumer thread
 
 	char *readBuffer = NULL;
 	FILE *timeFile;
 	size_t bufferSize = 0;
 	
+	//read the contents of file using getline
 	timeFile = fopen("currentTime.txt", "r");
 	if (timeFile == NULL) {
 		printf("There was an error opening \"currentTime.txt\"\n");
@@ -90,7 +91,7 @@ void* displayTime() {
 	readBuffer = NULL; 
 	
 	pthread_mutex_unlock(&mutex);
-	return NULL; 
+	return NULL;           //type void* is what pthread_create needs, so void* is what it will get
 }
 
 /*
@@ -101,7 +102,6 @@ void* displayTime() {
 *Sources Cited: https://linux.die.net/man/3/strftime 
 */
 void* writeTime() {
-	//pthread_mutex_lock(&mutex);
 
 	FILE *timeFile;
 	char buffer[256];
@@ -110,14 +110,16 @@ void* writeTime() {
 	t = time(NULL);
 	tmp = localtime(&t); 
 
-	
+	//obtain the time using the strftime function and write result to c-string
 	memset(buffer, '\0', sizeof(buffer));
 	strftime(buffer, sizeof(buffer), "%I:%M%P, %A, %B %e, %Y", tmp);
-
+	
+	//store the result in the currentTime.txt file
 	timeFile = fopen("currentTime.txt", "w");
 	fprintf(timeFile, "%s", buffer);
 	fclose(timeFile);
 	
+	//this function is the parent node, unlock here
 	pthread_mutex_unlock(&mutex);
 
 	return NULL;	
@@ -133,8 +135,9 @@ void pthreads() {
 	pthread_t thread1;
 	pthread_t thread2;
 	pthread_mutex_init(&mutex, NULL);   //initialize gobal mutex variable
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&mutex);  //lock the mutex and leave read for the parent to use
 
+	//create the threads and join them
 	if (pthread_create(&thread1, NULL, writeTime, NULL) != 0) {
 		fprintf(stderr, "Unable to create producer thread\n");
 		exit(1);
@@ -147,7 +150,6 @@ void pthreads() {
 	pthread_join(thread1, NULL);
 	pthread_join(thread2, NULL);
 
-	//pthread_mutex_unlock(&mutex);
 	pthread_mutex_destroy(&mutex);
 
 
