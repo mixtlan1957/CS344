@@ -2,11 +2,9 @@
 ** Program Filename: francomm.buildrooms.c
 ** Author: Mario Franco-Munoz
 ** Due Date: 5/9/2018
-** Description:
-** 
-** 
-** Input:  
-** Output: 
+** Description:CS344 Assignment 2: This file creates seven room files containing
+** a randomly assigned room type, and random amount of connections to other rooms.
+**  
 *********************************************************************/
 
 #include <stdio.h>
@@ -39,11 +37,9 @@ int canAddConnectionFrom(int);
 struct stat st = {0};
 
 
-
-
 /*
 *createRooms
-*Desccription: creates new directory and places room files within that directory. Also
+*Description: creates new directory and places room files within that directory. Also
 * assigns, but does not write the room properties. (Type, name, connection count).
 *Inputs: None
 *Output: (file output) creates room files under the ONID.rooms.PID directory
@@ -198,7 +194,8 @@ int randomInt(int low, int high) {
 
 /*
 *fill Map
-*Description:
+*Description: driver function for creating room connections until the graph is full
+* (all rooms have 3 to 6 outbound connections).
 */
 void fillMap() {
 	

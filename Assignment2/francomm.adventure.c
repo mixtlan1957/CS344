@@ -2,11 +2,11 @@
 ** Program FileName:  francomm.adventure.c
 ** Author: Mario Franco-Munoz
 ** Due Date: 5/9/2018
-** Description:
+** Description: CS344 Assignment2: this file reads the room files from the most
+** reecently created ONID.rooms.PID subidrectory and loads the data so that the user can play a
+** text based game that allows him/her to move from start room to room until the END_ROOM is found.
+** Player can also enter "time" to see what time it is.
 ** 
-** 
-** Input:  
-** Output: 
 *********************************************************************/
 
 #include <stdio.h>
@@ -451,7 +451,6 @@ int main() {
 	
 
 	loadRooms();
-	//test();
 	gameLoop();
 	return 0;
 }
