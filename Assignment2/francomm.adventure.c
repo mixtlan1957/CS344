@@ -73,7 +73,7 @@ int whichRoom(char *roomNameIn) {
 *Outputs:(I/O: displays stored time string)
 */
 void* displayTime() {
-	pthread_mutex_lock(&mutex);
+	
 	char *readBuffer = NULL;
 	FILE *timeFile;
 	size_t bufferSize = 0;
@@ -85,10 +85,10 @@ void* displayTime() {
 	}
 	getline(&readBuffer, &bufferSize, timeFile);
 	printf("\n%s\n\n\n", readBuffer);
-
+	
 	free(readBuffer);
-	readBuffer = NULL; 
-	pthread_mutex_unlock(&mutex);
+	readBuffer = NULL;
+	 
 	return NULL;
 }
 
@@ -100,26 +100,25 @@ void* displayTime() {
 *Sources Cited: https://linux.die.net/man/3/strftime 
 */
 void* writeTime() {
-	pthread_mutex_lock(&mutex);
+	
 	FILE *timeFile;
 	char buffer[256];
 	time_t t;
 	struct tm *tmp;
-	t = time(NULL);
+	t = time(NULL);	
+	
 	tmp = localtime(&t); 
-
 	//obtain the time using the strftime function and write result to c-string
 	memset(buffer, '\0', sizeof(buffer));
 	strftime(buffer, sizeof(buffer), "%I:%M%P, %A, %B %e, %Y", tmp);
 	
 	//store the result in the currentTime.txt file
-	timeFile = fopen("currentTime.txt", "w+");
+	timeFile = fopen("currentTime.txt", "w");
 	fprintf(timeFile, "%s", buffer);
 	fclose(timeFile);
 	
-	pthread_mutex_unlock(&mutex);
-	sleep(5);
-	return NULL;	
+	return NULL;
+	
 }
 
 /*
@@ -137,14 +136,14 @@ void gameLoop() {
 	int correctInput;
 	int errorCounter;
 	int stepCounter;
-	pthread_t thread2; 			//declare second thread
-
-	//start the write thread - will continously write time to a file until interrupted.
 	pthread_t thread1;
+
+	
+	pthread_mutex_lock(&mutex);
 	if (pthread_create(&thread1, NULL, writeTime, NULL) != 0) {
 		fprintf(stderr, "Unable to create producer thread\n");
 		exit(1);
-	}
+	}	
 
 	//set currentRoom to the room that is the "START_ROOM"
 	currentRoom = _startRoom;
@@ -152,6 +151,8 @@ void gameLoop() {
 	errorCounter = 0;
 	stepCounter = 0;
 	while(currentRoom != _endRoom || errorCounter > 0) {
+	
+	
 		if (errorCounter > 0) {
 			printf("HUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n\n");
 		}
@@ -176,14 +177,16 @@ void gameLoop() {
 		//check to see if time was called
 		if (strcmp(lineEntered, "time") == 0) {
 			//if "time" was called, unlock the mutex
-			//create the displayTime thread
-			pthread_mutex_unlock(&mutex);	
-			if (pthread_create(&thread2, NULL, displayTime, NULL) != 0) {
-				fprintf(stderr, "Unable to create consumer thread\n");
-				exit(1);
-			}
-			pthread_join(thread2, NULL);  //hold read thread until it finishes it's output
+			pthread_mutex_unlock(&mutex);
+			pthread_join(thread1, NULL);	
+			displayTime();
+			pthread_mutex_lock(&mutex);
 
+			//re-create time thread
+			if (pthread_create(&thread1, NULL, writeTime, NULL) != 0) {
+				fprintf(stderr, "Unable to create producer thread\n");
+				exit(1);
+			}	
 			correctInput = 1;
 		}
 		else {
@@ -213,14 +216,14 @@ void gameLoop() {
 		free(lineEntered);
 		lineEntered = NULL;
 	}
-
+	pthread_join(thread1, NULL);
 	//end of game
 	printf("YOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
 	printf("YOU TOOK %d STEPS. YOUR PATH TO VICTORY WAS:\n", stepCounter);
 	for (i = 0; i < stepCounter; i++) {
 		printf("%s\n", victoryPath[i]);
 	}	
-	pthread_join(thread1, NULL);
+	
 }
 
 
@@ -435,6 +438,7 @@ int main() {
 	
 	//initialize global mutex variable
 	pthread_mutex_init(&mutex, NULL);	
+	//pthread_mutex_lock(&mutex);
 
 	loadRooms();	 //load data
 	gameLoop();		//run game
