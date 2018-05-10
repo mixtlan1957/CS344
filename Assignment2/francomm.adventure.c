@@ -88,7 +88,7 @@ void* displayTime() {
 	
 	free(readBuffer);
 	readBuffer = NULL;
-	 
+	fclose(timeFile); 
 	return NULL;
 }
 
@@ -222,8 +222,7 @@ void gameLoop() {
 	printf("YOU TOOK %d STEPS. YOUR PATH TO VICTORY WAS:\n", stepCounter);
 	for (i = 0; i < stepCounter; i++) {
 		printf("%s\n", victoryPath[i]);
-	}	
-	
+	}		
 }
 
 
@@ -446,7 +445,7 @@ int main() {
 	
 	pthread_mutex_unlock(&mutex);
 	pthread_mutex_destroy(&mutex);
-	pthread_exit(NULL);
+	//pthread_exit(NULL);
 
 
 	return 0;
