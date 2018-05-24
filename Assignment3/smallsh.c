@@ -2,7 +2,7 @@
 ** Program FileName:  smallish.c
 ** Author: Mario Franco-Munoz
 ** Due Date: 5/27/2018
-** Description: CS344 Block 3 Assignment:
+** Description: CS344 Block 3 Assignment: small implementation of a bash like shell
 ** 
 *********************************************************************/
 
@@ -52,11 +52,11 @@ void primaryLoop() {
 	backgroundFlag = 0;
 	childPID = 0;
 	while(1) {
-		
+	
 		//check for finished background process if applicable
 		childPID = waitpid(-1, &GLOBAL_STATUS, WNOHANG);
 		bgProcess(childPID);	
-	
+
 		lineEntered = NULL;
 		//display shell input line and immediately clear stdout	
 		printf(": ");
@@ -73,35 +73,16 @@ void primaryLoop() {
 			numCharsEntered = getline(&lineEntered, &buffersize, stdin);
 			//printf("\n");
 			//if getline returns error value or characters exceed limit just restart
+			
 			if (numCharsEntered == -1 || numCharsEntered > 2048) { 
 				clearerr(stdin);
 				printf(": ");
 				fflush(stdout);
+				break;
 			}
 			else {
 				break;
 			}
-		}
-		//before tokenizing check if user entered exit
-		//exit is a keyword and regardless of whatever other arguments were entered, "exit" will exit
-		if (strstr(lineEntered, "exit")) {  
-			int i = 0;	
-			//kill off any child processes
-			while(BG_C_INDEX > 0) {
-				if(BG_CHILDREN[i] != -1) {
-					kill(BG_CHILDREN[i], SIGKILL);
-					BG_C_INDEX--;
-				}				
-				i++;
-			}
-	
-			if (lineEntered != NULL) {
-				free(lineEntered);
-			}
-
-			GLOBAL_STATUS = 0;
-			//shell exit
-			exit(0);
 		}
 
 		//call replaceStr to handle any occurences of "$$"	
@@ -123,6 +104,30 @@ void primaryLoop() {
 			free(lineEntered);
 			continue;  //jump back to start of while loop
 		}
+		
+		//check for exit
+		else if (strcmp(token, "exit") == 0) {
+			int i = 0;	
+			//kill off any child processes
+			while(BG_C_INDEX > 0) {   //use BG_C_INDEX which tracks how many bg children there are
+				if(BG_CHILDREN[i] != -1) {
+					kill(BG_CHILDREN[i], SIGKILL);
+					BG_C_INDEX--;
+				}				
+				i++;
+			}
+	
+			if (lineEntered != NULL) {
+				free(lineEntered);
+			}
+
+			printf("\n");
+			fflush(stdout);
+			GLOBAL_STATUS = 0;
+			//shell exit
+			exit(0);
+		}
+	
 
 		//check the very first token for cd or status
 		else if (strcmp(token, "cd") == 0) {
@@ -195,6 +200,7 @@ void primaryLoop() {
 				if (FOREGROUND_MODE == 0) { 
 					backgroundFlag = 1;
 				}
+				token = strtok(NULL, " \n");
 			}
 
 			//safe to store argument since token pointer has advanced past potential input/output file name
@@ -386,12 +392,14 @@ void primaryLoop() {
 					waitpid(spawnPid, &GLOBAL_STATUS, 0);
 
 					//check if child exited normally, if it did not display signal
+					
 					if (WIFSIGNALED(GLOBAL_STATUS)){
 						printf("background pid %d is done: terminated by signal", getpid());
 						int termSignal = WTERMSIG(GLOBAL_STATUS);
 						printf(" %d\n", termSignal);
 						fflush(stdout);
 					}
+					
 
 				}
 				else {
@@ -401,6 +409,8 @@ void primaryLoop() {
 					//display backgrounded process id
 					printf("background pid is %d\n", spawnPid);	
 					fflush(stdout);
+					//childPID = waitpid(-1, &GLOBAL_STATUS, WNOHANG);
+
 				}
 
 			break;
@@ -408,7 +418,7 @@ void primaryLoop() {
 	
 		}
 
-		//reset arguments array (not really necessary but yolo)
+		//reset arguments array
 		for (int i = 0; i < argIndex; i++) {
 			arguments[i] = NULL;
 		}			
@@ -447,6 +457,7 @@ void bgProcess(int childID){
 			fflush(stdout);
 		}
 	}
+	
 	while (childPID > 0) {	
 		//remove the child pid from list of background children
 		while (i < BG_C_INDEX && found == 0) {
@@ -463,6 +474,7 @@ void bgProcess(int childID){
 			i++;			}
 		childPID = waitpid(-1, &GLOBAL_STATUS, WNOHANG);
 	}
+	
 }
 
 
@@ -557,8 +569,8 @@ int main() {
   	SIGINT_action.sa_handler = SIG_IGN;   //set SIGINT to be ignored (CRTL-C)
   	sigfillset(&SIGINT_action.sa_mask);  //not going to block any signals
   	SIGINT_action.sa_flags = 0;			  //no additinal instructions needed
-	sigaction(SIGINT, &SIGINT_action, NULL);
-
+	//by calling this function, this is where we actually invoke SIGINT to be ignored
+	sigaction(SIGINT, &SIGINT_action, NULL); 
 
   	//CTRL-Z signal handler
   	SIGTSTP_action.sa_handler = catchSIGTSTP;  //call signal handler function
