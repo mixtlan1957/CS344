@@ -230,10 +230,12 @@ void primaryLoop() {
 		
 			//child case
 			case 0:
+				//children should ignore the SIGTSTP signal
+				sigaction(SIGTSTP, &SIGINT_action, NULL);
 
 				//if background flag is not set, we need to enable CTRL-C (SIGINT) termination of foreground process
 				if (backgroundFlag != 1) {
-					SIGINT_action.sa_handler = SIG_DFL;
+					//SIGINT_action.sa_handler = SIG_DFL;
 					sigaction(SIGINT, &SIGINT_action, NULL);
 				}
 
@@ -398,8 +400,7 @@ void primaryLoop() {
 						int termSignal = WTERMSIG(GLOBAL_STATUS);
 						printf(" %d\n", termSignal);
 						fflush(stdout);
-					}
-					
+					}	
 
 				}
 				else {
@@ -414,6 +415,8 @@ void primaryLoop() {
 				}
 
 			break;
+			//reinstate SIGTSTP handling for parent
+			sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 		}
 	
 		}
@@ -575,7 +578,7 @@ int main() {
   	//CTRL-Z signal handler
   	SIGTSTP_action.sa_handler = catchSIGTSTP;  //call signal handler function
   	sigfillset(&SIGTSTP_action.sa_mask);      //block all signals while handler is running
-  	sigaction(SIGTSTP, &SIGTSTP_action, NULL); 
+	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
 
   	primaryLoop();
