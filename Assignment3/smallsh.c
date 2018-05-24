@@ -105,7 +105,7 @@ void primaryLoop() {
 		}
 
 		//call replaceStr to handle any occurences of "$$"	
-		while (strstr(lineEntered, "$$")) {
+		while (strstr(lineEntered, "$$") != NULL) {
 			replaceStr(lineEntered);
 		}
 
@@ -190,9 +190,11 @@ void primaryLoop() {
 
 			}
 
-			//check if input was "&"
-			else if (strcmp(token, "&") == 0) {
-				backgroundFlag = 1;
+			//check if input was "&" and activate the backgroundFlag only if FOREGROUND_MODE is off
+			else if (strcmp(token, "&" ) == 0) {
+				if (FOREGROUND_MODE == 0) { 
+					backgroundFlag = 1;
+				}
 			}
 
 			//safe to store argument since token pointer has advanced past potential input/output file name
@@ -206,11 +208,6 @@ void primaryLoop() {
 			token = strtok(NULL, " \n");
 		}
 		arguments[argIndex] = NULL;  //add the trailing NULL here so that execvp works correctly
-
-		//if foreground mode has been enabled, (via SIGSTP) make it backgroundFlag is enabled
-		if (FOREGROUND_MODE == 1) {
-			backgroundFlag = 1;
-		}
 
 
 		if (arguments[0] != NULL) {
@@ -259,7 +256,6 @@ void primaryLoop() {
 						GLOBAL_STATUS = 1;  
 						exit(1); 
 					}
-					//close(fNull);
 				}
 
 				//redirect foregrounded process' output to /dev/null if no file was specified
@@ -286,7 +282,6 @@ void primaryLoop() {
 						GLOBAL_STATUS = 1;
 						exit(1);
 					}
-					//close(fNull);
 				}
 
 
@@ -316,7 +311,6 @@ void primaryLoop() {
 							GLOBAL_STATUS = 1; 
 							exit(1); 
 						}
-						//close(f);
 					}
 				}
 				//if "outputFileName" is not null process it
@@ -345,7 +339,6 @@ void primaryLoop() {
 							GLOBAL_STATUS = 1;  
 							exit(1); 
 						}
-						//close(f);
 					}
 				}			
 
@@ -394,7 +387,7 @@ void primaryLoop() {
 
 					//check if child exited normally, if it did not display signal
 					if (WIFSIGNALED(GLOBAL_STATUS)){
-						printf("terminated by signal");
+						printf("background pid %d is done: terminated by signal", getpid());
 						int termSignal = WTERMSIG(GLOBAL_STATUS);
 						printf(" %d\n", termSignal);
 						fflush(stdout);
@@ -448,7 +441,7 @@ void bgProcess(int childID){
 			fflush(stdout);
   		}
 		else if (WIFSIGNALED(GLOBAL_STATUS) != 0) {
-			printf("terminated by signal");
+			printf("background pid %d is done: terminated by signal", getpid());
 			int termSignal = WTERMSIG(GLOBAL_STATUS);
 			printf(" %d\n", termSignal);
 			fflush(stdout);
@@ -480,14 +473,14 @@ void catchSIGTSTP(int signo) {
 	if (FOREGROUND_MODE == 0) {
 		FOREGROUND_MODE = 1;
 		//display message
-		char *message1 = "\nEntering foreground-only mode (& is now ignored)\n: ";
-		write(STDOUT_FILENO, message1, 52);
+		char *message1 = "\nEntering foreground-only mode (& is now ignored)\n";
+		write(STDOUT_FILENO, message1, 50);
 	}
 	//otherwise turn off foreground mode
 	else {
 		FOREGROUND_MODE = 0;
-		char *message2 = "\nExiting foreground-only mode\n: ";
-		write(STDOUT_FILENO, message2, 32);
+		char *message2 = "\nExiting foreground-only mode\n";
+		write(STDOUT_FILENO, message2, 30);
 	}
 
 }
@@ -509,9 +502,8 @@ void replaceStr(char *str) {
 	char tempBuffer[8]; //allocate for buffer, largest PID can be on a 64 bit system is 4194304
 	memset(tempBuffer, '\0', sizeof(tempBuffer));
 	//convert the integer to c-string
-	sprintf(tempBuffer, "%d", temp);
+	sprintf(tempBuffer, "%d", temp);	
 
-	
 	while (found == -1) {
 		//search for the last occurence in the inputLine string for "$$"
 		for (int i = 0; i < strlen(str) - 1; i++) {
@@ -525,28 +517,30 @@ void replaceStr(char *str) {
 		if (found == -1) {
 			found = 0;
 		}
-	}
+	}	
 
 	//if we found the occurence, modify the input string
 	if (found == 1) {
 		//copy the first half (prior to $$) over
 		if (startIdx > 0) {
-			strncpy(before, str, startIdx - 1);
+			strncpy(before, str, startIdx);
 		}
 		//copy the second half (after $$) over
-		if (endIdx < strlen(str)) {
-		 	for(int k = endIdx + 1; k < strlen(str); k++ ) {
-				after[k - endIdx + 1] = str[k];										
-			}  
+		if (endIdx < strlen(str) - 1) {
+			memcpy(after, &str[endIdx+1], strlen(str));
+			after[strlen(str)] = '\0';
+  
 		}
 		//copy the string pieces
-		memset(str, '\0', 2048);
-		strcpy(str, before);
-		strcpy(str, tempBuffer); //the pid
-		strcpy(str, after);
-
-	}	
-
+		memset(str, '\0', strlen(str));  //first clear the line (target)
+		if (startIdx > 0) { 
+			strcpy(str, before);
+		}
+		strcat(str, tempBuffer); //the pid 
+		if (endIdx < strlen(str) - 1) { //second half of line
+			strcat(str, after);
+		}	
+	}
 }
 
 
@@ -570,7 +564,6 @@ int main() {
   	SIGTSTP_action.sa_handler = catchSIGTSTP;  //call signal handler function
   	sigfillset(&SIGTSTP_action.sa_mask);      //block all signals while handler is running
   	sigaction(SIGTSTP, &SIGTSTP_action, NULL); 
-
 
 
   	primaryLoop();
