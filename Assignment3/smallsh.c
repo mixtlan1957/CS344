@@ -18,17 +18,19 @@
 #include <fcntl.h>  //for file creation flags (O_TRNC etc)
 
 //global variables
-int GLOBAL_STATUS; //status variable for checking how a process exited/terminated
-struct sigaction SIGINT_action = {{0}};
+int GLOBAL_STATUS; //status variable for checking how a process exited/terminated (particularly, child processes)
+struct sigaction SIGINT_action = {{0}};  // wierd GNU bug requires double braces
 struct sigaction SIGTSTP_action = {{0}};
-int FOREGROUND_MODE;
+int FOREGROUND_MODE;   //makeshift bool flag for tracking SIGTSTP 
 int BG_CHILDREN[50];   //sloppy global array since we dont't have access to the glorious C++ STL
 int BG_C_INDEX;       //track how many background children are active
+int PROC_COUNT;
 
 //function prototypes
 void catchSIGSTP(int);
 void primaryLoop();
 void replaceStr(char*);
+void bgProcess(int);
 
 void primaryLoop() {
 	size_t buffersize = 0; // Holds how large the allocated buffer is
@@ -42,12 +44,19 @@ void primaryLoop() {
 	int backgroundFlag;      //default false for bg flag (&)
 	//forking variables
 	pid_t spawnPid = -5;
-
+	int f1, f2, fNull_1, fNull_2;
+	int childPID;
 
 	//arguments[0] = "ls";
 	//main run loop
+	backgroundFlag = 0;
+	childPID = 0;
 	while(1) {
-
+		
+		//check for finished background process if applicable
+		childPID = waitpid(-1, &GLOBAL_STATUS, WNOHANG);
+		bgProcess(childPID);	
+	
 		lineEntered = NULL;
 		//display shell input line and immediately clear stdout	
 		printf(": ");
@@ -56,7 +65,9 @@ void primaryLoop() {
 		//read a maximum of 512 commands
 
 		while(1) {
-
+			//reset variables
+			inputFileName = NULL;
+			outputFileName = NULL;	
 			argIndex = 0;
 			int numCharsEntered;
 			numCharsEntered = getline(&lineEntered, &buffersize, stdin);
@@ -109,8 +120,6 @@ void primaryLoop() {
 
 		//check for comment
 		else if (strncmp(token, "#", 1) == 0) {
-			printf(": ");
-			fflush(stdout);
 			free(lineEntered);
 			continue;  //jump back to start of while loop
 		}
@@ -133,31 +142,35 @@ void primaryLoop() {
 					perror("Error has occured");
 				}
 			}
+			//read next token/advance token pointer
+			token = strtok(NULL, " \n");
 
 		}
 		else if (strcmp(token, "status") == 0) {
 			//WIFEXITED()
 			//check to see if exited via exit command
-			if (WIFEXITED(GLOBAL_STATUS)) {
-				int exitStatus = WEXITSTATUS(GLOBAL_STATUS);
-				printf("exit value %d\n", exitStatus);
-			}
+			if (PROC_COUNT > 0) { //if only the shell has been running at this point, no need to bother
+				if (WIFEXITED(GLOBAL_STATUS)) {
+					int exitStatus = WEXITSTATUS(GLOBAL_STATUS);
+					printf("exit value %d\n", exitStatus);
+					fflush(stdout);
+				}
 
-			//WIFSIGNALED()
-			//check to see if terminated by signal
-			else if (WIFSIGNALED(GLOBAL_STATUS) != 0) {
-				printf("terminated by signal");
-				int termSignal = WTERMSIG(GLOBAL_STATUS);
-				printf(" %d\n", termSignal);
+				//WIFSIGNALED()
+				//check to see if terminated by signal
+				else if (WIFSIGNALED(GLOBAL_STATUS) != 0) {
+					printf("terminated by signal");
+					int termSignal = WTERMSIG(GLOBAL_STATUS);
+					printf(" %d\n", termSignal);
+					fflush(stdout);
+				}
 			}
-
-			if (lineEntered != NULL) {
-				free(lineEntered);
-			}
-			continue;
+			//read next token/advance token pointer
+			token = strtok(NULL, " \n");
 		}
 	
 		argIndex = 0;  //ARG INDEX IS RESET HERE! :<
+		backgroundFlag = 0;
 		while (token != NULL && argIndex < 512) {
 			//reset the background process flag at the start of every loop iteration. & needs to be at the end of line
 			backgroundFlag = 0;
@@ -182,19 +195,6 @@ void primaryLoop() {
 				backgroundFlag = 1;
 			}
 
-			//check if input was "$$" if so replace with pid
-			/*
-			else if (strcmp(token, "$$") == 0) {
-				tempInt = getpid();
-				char tempBuffer[15];
-				memset(tempBuffer, '\0', sizeof(tempBuffer));
-				//convert the integer value to character
-				sprintf(tempBuffer, "%d", tempInt);
-				arguments[argIndex] = strdup(token);
-				argIndex++;
-			}
-			*/
-
 			//safe to store argument since token pointer has advanced past potential input/output file name
 			else {
 				//increment the index and store argument
@@ -213,7 +213,8 @@ void primaryLoop() {
 		}
 
 
-
+		if (arguments[0] != NULL) {
+		PROC_COUNT++; 
 		//fork and process stuff here....	
 		spawnPid = fork();  //citation: class lecture notes "3.1 Processes.pdf" & "3.4 More UNIX IO"
 		switch (spawnPid) {
@@ -226,27 +227,30 @@ void primaryLoop() {
 		
 			//child case
 			case 0:
-				//if background flag is set, we need to enable CTRL-C (SIGINT) termination of foreground process
-				if (backgroundFlag == 1) {
+
+				//if background flag is not set, we need to enable CTRL-C (SIGINT) termination of foreground process
+				if (backgroundFlag != 1) {
 					SIGINT_action.sa_handler = SIG_DFL;
+					sigaction(SIGINT, &SIGINT_action, NULL);
 				}
 
 				//if the background flag was enabled and a file wasn't specified to be written to:
-				if (outputFileName == NULL && backgroundFlag == 1) {
-					int fNull;
-					
+				//first, make it so that standard input redirected from /dev/null
+				if (inputFileName == NULL && backgroundFlag == 1) {
+						
 					//specify the devnull filepath
-					fNull = open("/dev/null", O_WRONLY);
-					if (fNull < 0) {
-						perror("output file (//dev//null) error");
-						free(lineEntered);
-						for (int i = 0; i <argIndex; i++) {
-							free(arguments[i]);
+					//"0 is stdin, 1 is stdout, 2 is stderr"
+					fNull_1 = open("/dev/null", O_RDONLY);
+					if (fNull_1 < 0) {
+						perror("output file (/dev/null) error");
+						if (lineEntered != NULL) {
+							free(lineEntered);
 						}
 						GLOBAL_STATUS = 1;
 						exit(1);
 					}
-					int result = dup2(fNull, 1);
+					//child sent to foreground and input is redirected
+					int result = dup2(fNull_1, 0);
 					if (result == -1) { 
 						perror("target fNull open()");
 						if (lineEntered != NULL) {
@@ -255,17 +259,46 @@ void primaryLoop() {
 						GLOBAL_STATUS = 1;  
 						exit(1); 
 					}
+					//close(fNull);
 				}
 
-				//if "inputFIle" is not null process it
+				//redirect foregrounded process' output to /dev/null if no file was specified
+				if (outputFileName == NULL && backgroundFlag == 1) {
+
+					//specify the devnull filepath
+					fNull_2 = open("/dev/null", O_WRONLY, S_IRUSR | S_IWUSR);
+					if (fNull_2 < 0) {
+						perror("input file (/dev/null) error");
+						if (lineEntered != NULL) {
+							free(lineEntered);
+						}
+						GLOBAL_STATUS = 1;
+						exit(1);
+					}	
+
+					//foregrounded child output redirected
+					int result = dup2(fNull_2, 1);
+					if (result == -1) {
+						perror("target fNull open()");
+						if (lineEntered != NULL) {
+							free(lineEntered);
+						}
+						GLOBAL_STATUS = 1;
+						exit(1);
+					}
+					//close(fNull);
+				}
+
+
+
+				//if "inputFile" is not null process it
 				if (inputFileName != NULL) {
-					int f;
 
 					//in this case we are reading the contents from a file (<), directing that to stdin
 					//instead of our keyboard providing stdin, the file is
-					f = open(inputFileName, O_RDONLY);
+					f1 = open(inputFileName, O_RDONLY);
 					//check for file open error
-					if (f < 0) {
+					if (f1 < 0) {
 						printf("cannot open %s for input\n", inputFileName);
 						fflush(stdout);
 						if (lineEntered != NULL) {
@@ -277,99 +310,110 @@ void primaryLoop() {
 				
 					else {
 						//0 is stdin, 1 is stdout, 2 is stderr
-						int result = dup2(f, 0);
+						int result = dup2(f1, 0);
 						if (result == -1) { 
 							perror("target open()");
 							GLOBAL_STATUS = 1; 
 							exit(1); 
 						}
-						close(f);
+						//close(f);
 					}
 				}
 				//if "outputFileName" is not null process it
 				if (outputFileName != NULL) {
-					int f;
 
 					//create and truncate file that will be written to with ">"
-					f = open(outputFileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-					if (f < 0) {
+					f2 = open(outputFileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+					if (f2 < 0) {
 						perror("output file (write) error");
-						free(lineEntered);
-						for(int i = 0; i < argIndex; i++) {
-							free(arguments[i]);
+						if (lineEntered != NULL) {
+							free(lineEntered);
 						}
 						GLOBAL_STATUS = 1; 
 						exit(1);
 					}
 					else {
 						//use dup2 to switch the stream (stdout) to write to specified file 
-						int result = dup2(f, 1);
+						int result = dup2(f2, 1);
 						//if dup2 failed, free memory and exit
 						if (result == -1) { 
 							perror("target open()");
-							free(lineEntered);
-							for (int i = 0; i <argIndex; i++) {
-								free(arguments[i]);
+						
+							if (lineEntered != NULL) {
+								free(lineEntered);
 							}
 							GLOBAL_STATUS = 1;  
 							exit(1); 
 						}
+						//close(f);
 					}
-					close(f);
-				}
+				}			
 
-			
 
 				//call execvp...
-				if (execvp(arguments[0], arguments) < 0) {
-					perror("Exec failure!");
-					free(lineEntered);
-					for (int i = 0; i <argIndex; i++) {
-						arguments[i] = NULL;
+				if (arguments[0] != NULL) {
+					if (execvp(arguments[0], arguments) < 0) {
+						perror(arguments[0]);
+						if (lineEntered != NULL) {
+							free(lineEntered);
+						}
+						for (int i = 0; i <argIndex; i++) {
+							arguments[i] = NULL;
+						}
+						GLOBAL_STATUS = 1; 
+						exit(1);
 					}
-					GLOBAL_STATUS = 1; 
-					exit(1);
+					//close output and input file if appropriate
+					if (outputFileName != NULL) {
+						close(f2);
+					}
+					if (inputFileName != NULL) {
+						close(f1);	
+					}
+					//close the fNull_x file paths 
+ 					if (backgroundFlag == 1) { 
+						if (inputFileName == NULL) {
+							close(fNull_1);
+						}
+						if (outputFileName == NULL) {
+							close(fNull_2);
+						}   
+					}
+					GLOBAL_STATUS = 0;
+					exit(GLOBAL_STATUS);
 				}
 			break;
 
 			//parent case
 			default:
+				
 				//check if the background flag is set to false
 				//if that is the case, then we wait for child process to terminate
 				if (backgroundFlag != 1) {
 					waitpid(spawnPid, &GLOBAL_STATUS, 0);
 
+					//check if child exited normally, if it did not display signal
+					if (WIFSIGNALED(GLOBAL_STATUS)){
+						printf("terminated by signal");
+						int termSignal = WTERMSIG(GLOBAL_STATUS);
+						printf(" %d\n", termSignal);
+						fflush(stdout);
+					}
+
 				}
 				else {
 					//add child process to global array of child processes in case we need to abpruptly exit
-					BG_CHILDREN[BG_C_INDEX] = getpid();		
-					BG_C_INDEX++;	
+					BG_CHILDREN[BG_C_INDEX] = spawnPid;		
+					BG_C_INDEX++;
+					//display backgrounded process id
+					printf("background pid is %d\n", spawnPid);	
+					fflush(stdout);
 				}
 
 			break;
 		}
-
-		//for background processes: "check if any process has completed, if there have been 
-		//no terminated process continue runnning"
-		
-		int childPID = waitpid(-1, &GLOBAL_STATUS, WNOHANG);
-		while (childPID > 0) {
-			int found = 0;
-			int i = 0;
-			printf("background pid %d is done: ", childPID);
-			fflush(stdout);
-			
-			//remove the child pid from list of background children
-			while (i < BG_C_INDEX && found == 0) {
-				if (BG_CHILDREN[i] == childPID) {
-					found = 1;
-					BG_CHILDREN[i] = -1;
-					BG_C_INDEX--;
-				}
-				i++;
-			}
+	
 		}
-		
 
 		//reset arguments array (not really necessary but yolo)
 		for (int i = 0; i < argIndex; i++) {
@@ -389,6 +433,45 @@ void primaryLoop() {
 		}	
 	}
 }
+
+
+void bgProcess(int childID){
+	//for background processes: "check if any process has completed, if there have been 
+	//no terminated process continue runnning
+	int childPID = childID;	
+	int found = 0;
+	int i = 0;
+	if (childPID > 0) {
+		if (WIFEXITED(GLOBAL_STATUS)) {
+			printf("background pid %d is done: ", childPID);
+			printf("exit value %d\n", WIFEXITED(WIFEXITED(GLOBAL_STATUS)));
+			fflush(stdout);
+  		}
+		else if (WIFSIGNALED(GLOBAL_STATUS) != 0) {
+			printf("terminated by signal");
+			int termSignal = WTERMSIG(GLOBAL_STATUS);
+			printf(" %d\n", termSignal);
+			fflush(stdout);
+		}
+	}
+	while (childPID > 0) {	
+		//remove the child pid from list of background children
+		while (i < BG_C_INDEX && found == 0) {
+			if (BG_CHILDREN[i] == childPID) {
+				found = 1;
+				
+				//re-adjust our array
+				for (int j = i; j < BG_C_INDEX; j++) {
+					BG_CHILDREN[i] = BG_CHILDREN[i+1];
+		
+				}	
+				BG_C_INDEX--;
+			}
+			i++;			}
+		childPID = waitpid(-1, &GLOBAL_STATUS, WNOHANG);
+	}
+}
+
 
 
 void catchSIGTSTP(int signo) {
@@ -474,9 +557,7 @@ int main() {
 	FOREGROUND_MODE = 0;
 	BG_C_INDEX = 0;
 	memset(BG_CHILDREN, -1, sizeof(BG_CHILDREN));
-	//SIGINT_action = {0};
-	//SIGSTP_action = {0};
-
+	PROC_COUNT = 0;
 
   	//set up program so that SIGINT is ignored from the get-go (struct is global variable)
   	SIGINT_action.sa_handler = SIG_IGN;   //set SIGINT to be ignored (CRTL-C)
