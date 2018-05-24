@@ -19,7 +19,7 @@
 
 //global variables
 int GLOBAL_STATUS; //status variable for checking how a process exited/terminated (particularly, child processes)
-struct sigaction SIGINT_action = {{0}};  // wierd GNU bug requires double braces
+struct sigaction S_IGNORE_action = {{0}};  // wierd GNU bug requires double braces
 struct sigaction SIGTSTP_action = {{0}};
 int FOREGROUND_MODE;   //makeshift bool flag for tracking SIGTSTP 
 int BG_CHILDREN[50];   //sloppy global array since we dont't have access to the glorious C++ STL
@@ -231,12 +231,12 @@ void primaryLoop() {
 			//child case
 			case 0:
 				//children should ignore the SIGTSTP signal
-				sigaction(SIGTSTP, &SIGINT_action, NULL);
+				sigaction(SIGTSTP, &S_IGNORE_action, NULL);
 
 				//if background flag is not set, we need to enable CTRL-C (SIGINT) termination of foreground process
 				if (backgroundFlag != 1) {
-					//SIGINT_action.sa_handler = SIG_DFL;
-					sigaction(SIGINT, &SIGINT_action, NULL);
+					//S_IGNORE_action.sa_handler = SIG_DFL;
+					sigaction(SIGINT, &S_IGNORE_action, NULL);
 				}
 
 				//if the background flag was enabled and a file wasn't specified to be written to:
@@ -569,11 +569,11 @@ int main() {
 	PROC_COUNT = 0;
 
   	//set up program so that SIGINT is ignored from the get-go (struct is global variable)
-  	SIGINT_action.sa_handler = SIG_IGN;   //set SIGINT to be ignored (CRTL-C)
-  	sigfillset(&SIGINT_action.sa_mask);  //not going to block any signals
-  	SIGINT_action.sa_flags = 0;			  //no additinal instructions needed
+  	S_IGNORE_action.sa_handler = SIG_IGN;   //set SIGINT to be ignored (CRTL-C) from the get-go
+  	sigfillset(&S_IGNORE_action.sa_mask);  //not going to block any signals
+  	S_IGNORE_action.sa_flags = 0;			  //no additinal instructions needed
 	//by calling this function, this is where we actually invoke SIGINT to be ignored
-	sigaction(SIGINT, &SIGINT_action, NULL); 
+	sigaction(SIGINT, &S_IGNORE_action, NULL); 
 
   	//CTRL-Z signal handler
   	SIGTSTP_action.sa_handler = catchSIGTSTP;  //call signal handler function
