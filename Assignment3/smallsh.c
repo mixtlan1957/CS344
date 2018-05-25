@@ -199,6 +199,8 @@ void primaryLoop() {
 			else if (strcmp(token, "&" ) == 0) {
 				if (FOREGROUND_MODE == 0) { 
 					backgroundFlag = 1;
+					arguments[argIndex] = strdup(token);
+					argIndex++;
 				}
 				token = strtok(NULL, " \n");
 			}
@@ -214,7 +216,12 @@ void primaryLoop() {
 			token = strtok(NULL, " \n");
 		}
 		arguments[argIndex] = NULL;  //add the trailing NULL here so that execvp works correctly
-
+	
+		//if the backgroundFlag was set that memans we need to ignore the trailing '&' character
+		if (backgroundFlag == 1) {
+			arguments[argIndex - 1] = NULL;
+			argIndex--;
+		}
 
 		if (arguments[0] != NULL) {
 		PROC_COUNT++; 
