@@ -71,9 +71,8 @@ void primaryLoop() {
 			argIndex = 0;
 			int numCharsEntered;
 			numCharsEntered = getline(&lineEntered, &buffersize, stdin);
-			//printf("\n");
-			//if getline returns error value or characters exceed limit just restart
-			
+
+			//if getline returns error value or characters exceed limit just restart			
 			if (numCharsEntered == -1 || numCharsEntered > 2048) { 
 				clearerr(stdin);
 				printf(": ");
@@ -242,7 +241,6 @@ void primaryLoop() {
 
 				//if background flag is not set, we need to enable CTRL-C (SIGINT) termination of foreground process
 				if (backgroundFlag != 1) {
-					//S_IGNORE_action.sa_handler = SIG_DFL;
 					sigaction(SIGINT, &S_IGNORE_action, NULL);
 				}
 
@@ -365,7 +363,11 @@ void primaryLoop() {
 						if (lineEntered != NULL) {
 							free(lineEntered);
 						}
+						//free/reset argument array
 						for (int i = 0; i <argIndex; i++) {
+							if (arguments[i] != NULL) {
+								free(arguments[i]);
+							}
 							arguments[i] = NULL;
 						}
 						GLOBAL_STATUS = 1; 
@@ -387,6 +389,19 @@ void primaryLoop() {
 							close(fNull_2);
 						}   
 					}
+				
+					//free memory		
+					for (int i = 0; i < argIndex; i++) {
+						if (arguments[i] != NULL) {
+							free(arguments[i]);
+							arguments[i] = NULL;
+						}
+						if (lineEntered != NULL) {
+							free(lineEntered);
+						}
+					}
+			
+					//child process exit
 					GLOBAL_STATUS = 0;
 					exit(GLOBAL_STATUS);
 				}
@@ -430,6 +445,9 @@ void primaryLoop() {
 
 		//reset arguments array
 		for (int i = 0; i < argIndex; i++) {
+			if(arguments[i] != NULL) {
+				free(arguments[i]);
+			}
 			arguments[i] = NULL;
 		}			
 
