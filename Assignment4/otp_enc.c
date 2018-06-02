@@ -15,6 +15,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
+#include <time.h>
+#include <fcntl.h>
 
 //function prototypes
 void error(const char *);
@@ -30,19 +32,21 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	//variables associated with reading files and file contents
 	FILE *messageFile;
 	FILE *keyFile;
-	char *message;
-	char *key;
+	char *message;      //initial read of msg from file
+	char *key;			//initial read of key from file
 	ssize_t msgLen;    //outbound message length        
 	ssize_t keyLength; //outbound key length
 	size_t buffersize = 0;
 	int ascii;
 	//variables for sending client data to server
 	int portNumber = atoi(port);
-	int socketFD, charsWritten, charsRead;
+	int socketFD, charsRead;
 	struct sockaddr_in serverAddress;
 	struct hostent* serverHostInfo;
-	char *completeMsg; 	
-
+	char *completeMsg = NULL; 	
+	char *recMsg = NULL;
+	char *finalOutput = NULL;
+	int currentRead = 0;
 
 	//first check to make sure that we are getting actual data and not null arguments			
 	if (ptextFileName == NULL || keyFileName == NULL || port == NULL) {
@@ -109,7 +113,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
     for (int i = 0; i < msgLen - 1 ; i++) {
     	ascii = (int)message[i]; //cast into an int so we don't have to use a huge if statement
     	if ( (ascii < 65 || ascii > 90) && ascii != 32 ) {
-    		fprintf(stderr, "otp_enc error: input contains bad characters");
+    		fprintf(stderr, "otp_enc error: input contains bad characters\n");
 			free(message);
 			free(key);
 			fclose(messageFile);
@@ -122,8 +126,13 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
     fclose(messageFile);
     fclose(keyFile);	
 
-	/*
-	
+
+	//combine all the necessary strings into one big message to send to the server
+	completeMsg = createMessage(message, key);	
+
+	int errorFlag = 0;  //simple error flag to keep track of weather or not there was an error so we can exit with 1	
+	socketFD = 0;	
+
 	//send to otp_enc_d (encryption dameon)
 	memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
  	serverAddress.sin_family = AF_INET;  //create a network-cable socket (IPV4)
@@ -131,8 +140,9 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	serverHostInfo = gethostbyname("localhost"); // Convert the machine name into a special form of address
 	//validate host
 	if (serverHostInfo == NULL) { 
-		fprintf(stderr, "CLIENT: ERROR, no such host\n"); 
-		exit(1);
+		fprintf(stderr, "CLIENT: ERROR, no such host\n");
+		errorFlag = 1; 
+		goto cleanup;
 	}
 	//copy in the address
 	memcpy((char*)&serverAddress.sin_addr.s_addr, (char*)serverHostInfo->h_addr, serverHostInfo->h_length);	
@@ -140,38 +150,136 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	//Set up the socket
 	socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
 	if (socketFD < 0) { 
-		error("CLIENT: ERROR opening socket");
+		fprintf(stderr, "CLIENT: ERROR opening socket\n");
+		errorFlag = 1;
+		goto cleanup;
 	}
 
 	//connect to server
 	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) { // Connect socket to address
-		error("CLIENT: ERROR connecting");
+		fprintf(stderr, "CLIENT: ERROR connecting\n");
+		errorFlag = 1;
+		goto cleanup;
 	}
-	*/
-
-	//combine all the necessary strings into one big message to send to the server
-	completeMsg = createMessage(message, key);	
 	
-
-	/*
+	msgLen = strlen(completeMsg);
 	//send data to server, starting with the message
 	ssize_t byteSent = send(socketFD, message, 1000, 0);
-	while(byteSent < msgLen) {
+	while(byteSent < msgLen) {     //send message in 1000 byte chunks until it is completely delivered
 		byteSent += send(socketFD, message, 1000, 0);
 	}
 	
-	*/
-	
 	//get return from server
+	//calculate how long the return statement from server will be:
+	//header + encrypted message + newline character + null terminator
+	char *incomingHeader = "HEADER_OTP_ENC_P ";
+	msgLen = strlen(message) + strlen(incomingHeader) + 2; //strlen does not include null terminator acording to the interwebs
 
+	
+	//allocate the recieving buffer
+	recMsg = malloc(sizeof(char) * msgLen );
+	msgLen -= 2; //bytes we expect/need to recieve: encrypted message + header      
+	
+	//set a time limit for reading from server
+	time_t start = time(0);
+	time_t limit;
+
+	//read the first chunk of data	
+	charsRead = recv(socketFD, recMsg, 1000, 0);
+
+	//error handling
+	if (charsRead == -1) {
+		fprintf(stderr, "Error recieving message from otp_enc_d (to otp_enc)\n");
+		goto cleanup;
+	}	
+
+	//set the socket to not block since we are reading in byte chunks
+	//including this statement, just in case incomplete packet sent
+	//fcntl(socketFD, F_SETFL, O_NONBLOCK);
+
+	//make sure we at least get the header...
+	while (charsRead < sizeof(incomingHeader)) {
+		
+		currentRead = recv(socketFD, recMsg, 1000, 0);
+		
+		//check for error
+		if (currentRead == -1) {
+			fprintf(stderr, "Error recieving message from otp_enc_d (to otp_enc)\n");
+			goto cleanup; 
+		}
+		else {
+			charsRead += currentRead;
+		}
+		limit = time(0);
+		
+		//transmission should not take more than 5 seconds for header alone...
+		if (limit - start > 5) {
+			fprintf(stderr, "Connection timed out: otp_enc_d to otp_enc\n");
+			goto cleanup;
+		}	
+	}
+	
+	//check to make sure we connected to correct client upon first byte chunk read
+	if (strstr(recMsg, incomingHeader) == NULL) {
+		fprintf(stderr, "Failed to connect to the correct server.\n");
+		errorFlag = 1;
+		goto cleanup;
+	}	
+		
+
+	//if all is good, continue reading the stream
+	start = time(0);
+	while (charsRead < msgLen) {
+		currentRead = recv(socketFD, recMsg, 1000, 0);	
+		//check for error
+		if (currentRead == -1) {
+			fprintf(stderr, "Error recieving message from otp_enc_d (to otp_enc)\n");
+			goto cleanup; 
+		}
+		else {
+			charsRead += currentRead;
+		}
+		limit = time(0);
+	
+		//transmission should not take more than 10 seconds...
+		if (limit - start > 10) {
+			fprintf(stderr, "Connection timed out: otp_enc_d to otp_enc\n");
+			goto cleanup;
+		}			
+	}  	
+	//add newline and null terminator	
+	recMsg[sizeof(recMsg) - 2]  = '\n';
+	recMsg[sizeof(recMsg) - 1] = '\0';	
+
+	//strip off the header
+	finalOutput = malloc(sizeof(char) * (strlen(message) + 2)); //the encrypted message should be of the same length
+													      //as the original message plus a newline and '\0'
+	int digitsToCopy = sizeof(recMsg) -  strlen(incomingHeader); 
+	memcpy(finalOutput, &recMsg[sizeof(incomingHeader) + 1], digitsToCopy);
 
 	//output to stdout
-
+	fprintf(stdout, finalOutput);
 
 	//free memory allocated for strings
-	free(completeMsg);
+	cleanup:
+	if (completeMsg != NULL) {
+		free(completeMsg);
+	}	
 	free(message);
-    free(key);
+	free(key);
+	if (recMsg != NULL) {
+		free(recMsg);
+	}
+	if(finalOutput != NULL) {
+		free(finalOutput);
+	}
+	if (socketFD != 0) {
+		close(socketFD);
+	}
+	
+	if (errorFlag == 1) {
+		exit(1);
+	}
 }
 
 //combine all the different strings that need to be sent to the server
@@ -181,9 +289,10 @@ char *createMessage(char *message, char *key) {
 	char *header = "HEADER_OTP_ENC "; //indentifies the sender
 	char *msgId = "$$MESSAGE$$: ";   //indicates start of message to be encrypted
 	char *keyId = "$$KEY$$: ";      //indicates start of key to be encrypted
+	char *EOT = " $$EOT$$";			//indcates the end of the transmission
 
-	len = strlen(header) + strlen(msgId)  + strlen(message) + strlen(keyId)  + strlen(key);
-	char *msg = malloc(sizeof(char) * len + 1);
+	len = strlen(header) + strlen(msgId)  + strlen(message) + strlen(keyId)  + strlen(key) + strlen(EOT);
+	char *msg = malloc(sizeof(char) * (len + 1)); //leave space for the null terminator
 
 	//combine strings
 	memcpy(msg, header, strlen(header)); 
@@ -191,10 +300,10 @@ char *createMessage(char *message, char *key) {
 	strcat(msg, message);
 	strcat(msg, keyId);
 	strcat(msg, key);
+	strcat(msg, EOT);
 	msg[len] = '\0';		
 
 	return msg;
-
 }
 
 /*
