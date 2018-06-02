@@ -13,14 +13,17 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <assert.h>
+#include <time.h>
 
 //function prototypes
 int randomInt(int, int);
-int createFile(int);
+void createFile(int);
 
 
 //creates file and poplulates the key
-int createFile(int fileLen) {
+void createFile(int fileLen) {
+	int randTemp;
 	FILE *f;   				// file opbject declaration
 	//allocate a string with length of file + \n character
 	char *tempStr = malloc((fileLen + 1)*sizeof(char));	
@@ -29,19 +32,22 @@ int createFile(int fileLen) {
 
 	//loop through length of key, and add random characters
 	for (int i = 0; i < fileLen; i++) {
-			  												 
-
+		//generate a random integer within the ascii range of capital letters
+		//91 signifies the '[' character, but we will treat it as a space character
+		randTemp = randomInt(65, 91);
+		if (randTemp == 91) {
+			tempStr[i] = ' ';
+		}
+		else {
+			tempStr[i] = (char)randTemp;
+		}		  												 
 	}
 	//append the newline character
 	tempStr[fileLen] = '\n';	
 
-	
-
 	//open file for writing
 	f = fopen("mykey", "w");  //truncate any existing file
 	fprintf(f, "%s", tempStr);
-
-		
 
 	fclose(f);
 	free(tempStr);
@@ -64,20 +70,17 @@ int randomInt(int low, int high) {
 
 int main (int argc, char *argv[]) {
 	int fileLength;	
-
+	srand(time(0));  //initialize seed
 
 	//get argument from	command line, check to make sure only one argument was passed
-	if (argc != 1) {
-		perror("No argument provided. Please try again.")
+	if (argc != 2) {
+		printf("No argument provided. Please try again.\n");
 	}
 	else {
-		fileLength = atoi(argv[0]);
+		fileLength = atoi(argv[1]);
+		createFile(fileLength);
 	}
-
-
-
-
-
+	
 
 	return	0;
 }
