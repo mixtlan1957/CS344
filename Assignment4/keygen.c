@@ -21,10 +21,10 @@ int randomInt(int, int);
 void createFile(int);
 
 
-//creates file and poplulates the key
+//creates and poplulates the key
 void createFile(int fileLen) {
 	int randTemp;
-	FILE *f;   				// file opbject declaration
+
 	//allocate a string with length of file + \n character
 	char *tempStr = malloc((fileLen + 1)*sizeof(char));	
 	assert(tempStr != NULL);
@@ -45,11 +45,10 @@ void createFile(int fileLen) {
 	//append the newline character
 	tempStr[fileLen] = '\n';	
 
-	//open file for writing
-	f = fopen("mykey", "w");  //truncate any existing file
-	fprintf(f, "%s", tempStr);
+	//output to stdout
+	fprintf(stdout, "%s", tempStr);
 
-	fclose(f);
+
 	free(tempStr);
 }
 
