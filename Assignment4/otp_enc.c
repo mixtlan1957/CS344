@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
 
 	//make sure that three arguments are being passed (plaintext, key, port) - four including the program itself	
 	if (argc != 4) {
-		fprintf(stderr,"Incorrect number of arguments passed to function.");	
+		fprintf(stderr,"Incorrect number of arguments passed to function.\n");	
 	}
 	else {
 		sendMessage(argv[1], argv[2], argv[3]);	
