@@ -18,9 +18,11 @@
 #include <time.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 //global variables
-#define NUM_THREADS 5
+#define NUM_THREADS 1
+char *argRead;
 int listeningPort;
 int portUsage;
 
@@ -28,42 +30,47 @@ int portUsage;
 
 //funcntion prototypes
 char *encryptMessage(char *, char *);
-void *processData(int);
-char *fragMessage(char *);
+void *processData(void *);
+char *getMessage(char *);
+char *getKey(char *);
 
 
-
-
-
-
-
-
-
-
-
+/*
 char *encryptMessage(char *message, char *key) {
 
 
 
-}
-
-
-
-char *fragMessage(char *) {
 
 
 }
+
+
+char *getMessage(char *fullStr) {
+
+	int startIdx;
+	int endIdx;
+	char *message;
+	
+	
+	
+
+}
+
+
+*/
 
 
 void *processData(void* port) {
+	printf("hey we're in!\n");
+	
 	//store the input variable
 	int portNumber = *((int *)port);
-
+	
 	//variables for handling server communication
 	int listenSocketFD, establishedConnectionFD, charsRead;
 	socklen_t sizeOfClientInfo;
 	char *readBuffer = NULL;
-	struct sockaddr_in serverAddress, clientAdress;
+	struct sockaddr_in serverAddress, clientAddress;
 	int errorFlag = 0;
 
 
@@ -78,24 +85,29 @@ void *processData(void* port) {
 	listenSocketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
 	if (listenSocketFD < 0) {
 		fprintf(stderr, "ERROR opening socket\n");
+		printf("Error opening socket\n");
 		goto cleanup;
 	}	
 
 	//Enable the socket to begin listening
 	// Enable the socket to begin listening
 	if (bind(listenSocketFD, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {// Connect socket to port
-		error("ERROR on binding");
+		fprintf(stderr, "ERROR on binding\n");
+		printf("Error on binding\n");
+		goto cleanup;
 	}
 	listen(listenSocketFD, 5); // Flip the socket on - it can now receive up to 5 connections
 
 	//primary loop
 	while(1) {
-
+		printf("we made it inside the loop.\n");
 		// Accept a connection, blocking if one is not available until one connects
 		sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 		establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
-		if (establishedConnectionFD < 0) error("ERROR on accept");
-
+		if (establishedConnectionFD < 0) {
+			fprintf(stderr, "ERROR on accept\n");
+			printf("error on accept\n");
+		}
 		
 	
 		//setup select variables
@@ -108,8 +120,8 @@ void *processData(void* port) {
 		//watch the sockets for when they have input/output
 		FD_ZERO(&readFDs);
 		FD_ZERO(&writeFDs);
-		FD_SET(listenSocketFD, readFDs);
-		FD_SET(establishedConnectionFD, writeFDs);
+		FD_SET(establishedConnectionFD, &readFDs);
+		FD_SET(establishedConnectionFD, &writeFDs);
 
 
 		//Wait up to 50 seconds per loop cycle
@@ -118,33 +130,32 @@ void *processData(void* port) {
 
 
 		//determine that max file descriptor and add 1
-		if (listenSocketFD > establishedConnectionFD ) {
-			maxFD = listenSocketFD;
-		}
-		else {
-			maxFD = establishedConnectionFD;
-		}
-		maxFD++;
-
+		maxFD = establishedConnectionFD;
+		
 		//call select to read on listenSocketFD
-		retval = select(maxFD, &listenSocketFD, NULL, NULL, &timeToWait);
-
+		retval = select(maxFD + 1, &readFDs, NULL, NULL, &timeToWait);
+		printf("this is our retval: %d\n", retval);
 		if (retval == -1) {
 			errorFlag = 1;
 			goto cleanup;
 		}
+	
+
 		//if the resource is available for reading, read the stream
 		else if (retval != 0) {
-			//get message from client
-			readBuffer = malloc(sizeof(char) * 1000);
-			memset(readBuffer, '\0', 1000);
-			charsRead = recv(establishedConnectionFD, buffer, 1000, 0); // Read the client's message from the socket
-			if(charsRead < 0) {
-				fprintf(stderr, "ERROR reading from socket\n");
-				goto cleanup;
-			}
-			printf("SERVER: I recieved this from the client: \"%s\"\n", buffer);
+			if (FD_ISSET(establishedConnectionFD, &readFDs)) {
 
+				//get message from client
+				readBuffer = malloc(sizeof(char) * 1000);
+				memset(readBuffer, '\0', 1000);
+				charsRead = recv(establishedConnectionFD, readBuffer, 1000, 0); // Read the client's message from the socket
+				if(charsRead < 0) {
+					fprintf(stderr, "ERROR reading from socket\n");
+					printf("error reading from socket\n");
+					goto cleanup;
+				}
+				printf("SERVER: I recieved this from the client: \"%s\"\n", readBuffer);
+			}
 		}
 	}	
 
@@ -154,8 +165,8 @@ void *processData(void* port) {
 	if (errorFlag == 1) {
 		exit(1);
 	}
+	return NULL;
 }
-
 
 
 
@@ -168,22 +179,26 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "Incorrect number of arguments passed to function.\n");
 	}
 	else {
-		listeningPort = argv[1]; 
-	}
-
-	//create 5 threads - implement this part last
-	pthread_t threads[NUM_THREADS];
-	int thread_args[NUM_THREADS];
-	int result_code, index;
-	for (int i = 0; i < NUM_THREADS; i++) {
-		threads_args[index] = index;
-		result_code = pthread_create(&threads[index], NULL, processData, &listeningPort);
-		if (result_code != 0) {
-			fprintf(stderr, "Error creating threads...\n");
+		argRead = argv[1];
+		listeningPort = atoi(argRead);
+		//include int checking statement here later 
+	
+		processData((void *) &listeningPort);
+			
+		/*
+		//create 5 threads - implement this part last
+		pthread_t threads[NUM_THREADS];
+		int result_code;
+		for (int i = 0; i < NUM_THREADS; i++) {
+			result_code = pthread_create(&threads[i], NULL, processData, (void *) &listeningPort);
+			if (result_code != 0) {
+				fprintf(stderr, "Error creating threads...\n");
+			}
+			printf("what what in the butt%d\n", result_code);
 		}
+		*/	
+
 	}
-
-
 
 
 

@@ -129,7 +129,9 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 
 	//combine all the necessary strings into one big message to send to the server
 	completeMsg = createMessage(message, key);	
-
+	//printf("%s", completeMsg);
+	//sleep(5);
+	
 	int errorFlag = 0;  //simple error flag to keep track of weather or not there was an error so we can exit with 1	
 	socketFD = 0;	
 
@@ -164,11 +166,14 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	
 	msgLen = strlen(completeMsg);
 	//send data to server, starting with the message
-	ssize_t byteSent = send(socketFD, message, 1000, 0);
+	ssize_t byteSent = send(socketFD, completeMsg, 1000, 0);
+	printf("We sent the server: %s \n", completeMsg);
 	while(byteSent < msgLen) {     //send message in 1000 byte chunks until it is completely delivered
-		byteSent += send(socketFD, message, 1000, 0);
+		byteSent += send(socketFD, completeMsg, 1000, 0);
+		printf("We sent the server: %s \n", "something?");	
 	}
-	
+	printf("we made it past the send loop (client)\n");	
+
 	//get return from server
 	//calculate how long the return statement from server will be:
 	//header + encrypted message + newline character + null terminator
@@ -280,6 +285,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	if (errorFlag == 1) {
 		exit(1);
 	}
+	
 }
 
 //combine all the different strings that need to be sent to the server
@@ -289,10 +295,12 @@ char *createMessage(char *message, char *key) {
 	char *header = "HEADER_OTP_ENC "; //indentifies the sender
 	char *msgId = "$$MESSAGE$$: ";   //indicates start of message to be encrypted
 	char *keyId = "$$KEY$$: ";      //indicates start of key to be encrypted
-	char *EOT = " $$EOT$$";			//indcates the end of the transmission
+	char *EOT = "$$EOT$$\n\0";			//indcates the end of the transmission
 
 	len = strlen(header) + strlen(msgId)  + strlen(message) + strlen(keyId)  + strlen(key) + strlen(EOT);
 	char *msg = malloc(sizeof(char) * (len + 1)); //leave space for the null terminator
+	memset(msg, '\0', sizeof(msg));
+
 
 	//combine strings
 	memcpy(msg, header, strlen(header)); 
@@ -301,8 +309,8 @@ char *createMessage(char *message, char *key) {
 	strcat(msg, keyId);
 	strcat(msg, key);
 	strcat(msg, EOT);
-	msg[len] = '\0';		
-
+	//msg[len] = '\0';
+	//printf("%s\n", msg);		
 	return msg;
 }
 
