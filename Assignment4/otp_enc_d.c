@@ -56,7 +56,6 @@ char *getMessage(char *fullStr) {
 
 }
 
-
 */
 
 
@@ -72,14 +71,15 @@ void *processData(void* port) {
 	char *readBuffer = NULL;
 	struct sockaddr_in serverAddress, clientAddress;
 	int errorFlag = 0;
-
+	int readIncrement = 1000;   //variable for keeping track of how many bytes are read per recv
+	int readBufferSize = 1000;
+	char *completeMsg = NULL;
 
 	// Set up the address struct for this process (the server)
 	memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
 	serverAddress.sin_family = AF_INET; // Create a network-capable socket
 	serverAddress.sin_port = htons(portNumber); // Store the port number
 	serverAddress.sin_addr.s_addr = INADDR_ANY; // Any address is allowed for connection to this process
-
 
 	// Set up the socket
 	listenSocketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
@@ -133,30 +133,74 @@ void *processData(void* port) {
 		maxFD = establishedConnectionFD;
 		
 		//call select to read on listenSocketFD
-		retval = select(maxFD + 1, &readFDs, NULL, NULL, &timeToWait);
-		printf("this is our retval: %d\n", retval);
-		if (retval == -1) {
-			errorFlag = 1;
-			goto cleanup;
-		}
+	//	retval = select(maxFD + 1, &readFDs, NULL, NULL, &timeToWait);
+//		printf("this is our retval: %d\n", retval);
+//		if (retval == -1) {
+//			errorFlag = 1;
+//			goto cleanup;
+//		}
 	
 
 		//if the resource is available for reading, read the stream
-		else if (retval != 0) {
-			if (FD_ISSET(establishedConnectionFD, &readFDs)) {
+		//else if (retval != 0) {
+		//	if (FD_ISSET(establishedConnectionFD, &readFDs)) {
 
 				//get message from client
 				readBuffer = malloc(sizeof(char) * 1000);
-				memset(readBuffer, '\0', 1000);
+				memset(readBuffer, 0, 1000);
 				charsRead = recv(establishedConnectionFD, readBuffer, 1000, 0); // Read the client's message from the socket
 				if(charsRead < 0) {
 					fprintf(stderr, "ERROR reading from socket\n");
 					printf("error reading from socket\n");
 					goto cleanup;
 				}
-				printf("SERVER: I recieved this from the client: \"%s\"\n", readBuffer);
-			}
-		}
+
+				//if read was successful copy over first chunk of bytes to our mesage variable
+				completeMsg = malloc(sizeof(char) * 1000); 
+				memcpy(completeMsg, readBuffer, 1000);
+				
+				//variables to keep track of what we are currently reading and if we found the EOT descriptor
+				int currentRead = 0;
+				char *tempStr = NULL;
+				int found = 0;
+				//read the complete message (continue reading until we have obtained the end of transmission flag)
+				//reset the buffer
+			
+				while (found == 0) {
+
+					memset(readBuffer, 0, 1000); 	//reset the read buffer
+					//check if we need to increase the size of the where the message is being stored
+					/*
+					if (charsRead + readIncrement >= sizeof(completeMsg)) {
+						readBufferSize = readBufferSize * 2;	
+						tempStr = malloc(sizeof(char) * readBufferSize);
+						
+						int tempInt = sizeof(readBuffer);
+						memcpy(tempStr, readBuffer, tempInt);
+						free(readBuffer);
+						readBuffer = tempStr;
+					}
+					*/
+					//read the next chunk of bytes	
+					currentRead = recv(establishedConnectionFD, readBuffer, 1000, 0);	
+					printf("Bytes read inside the loop %d\n", currentRead);
+					//check for any errors
+					if (currentRead < 0) {
+						fprintf(stderr, "ERROR reading from socket\n");
+						goto cleanup;
+					}
+					else {
+						charsRead += currentRead;
+						if (strstr(completeMsg, "$$KEY$$")) {
+							found = 1;
+						}
+					}
+					strcat(completeMsg, readBuffer);											
+				}				
+
+				printf("SERVER: I recieved this from the client: \"%s\"\n", completeMsg);
+		//	}
+	//	}
 	}	
 
 

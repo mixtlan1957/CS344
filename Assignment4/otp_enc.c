@@ -46,7 +46,8 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	char *completeMsg = NULL; 	
 	char *recMsg = NULL;
 	char *finalOutput = NULL;
-	int currentRead = 0;
+	int currentRead = 0;      //variables to keep track of where we are in the sending process
+	int currentSend = 0;
 
 	//first check to make sure that we are getting actual data and not null arguments			
 	if (ptextFileName == NULL || keyFileName == NULL || port == NULL) {
@@ -167,9 +168,19 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	msgLen = strlen(completeMsg);
 	//send data to server, starting with the message
 	ssize_t byteSent = send(socketFD, completeMsg, 1000, 0);
-	printf("We sent the server: %s \n", completeMsg);
 	while(byteSent < msgLen) {     //send message in 1000 byte chunks until it is completely delivered
-		byteSent += send(socketFD, completeMsg, 1000, 0);
+		currentSend = send(socketFD, &completeMsg[byteSent], 1000, 0);   //send out the next chunk of data
+		
+		//check for send errors
+		if( currentSend < 0) {
+			fprintf(stderr, "CLIENT: Send ERROR\n");
+			errorFlag = 1;
+			goto cleanup;
+		}
+		//if our send was successful, tally up the bytes to move the pointer
+		else {
+			byteSent += currentSend;
+		}
 		printf("We sent the server: %s \n", "something?");	
 	}
 	printf("we made it past the send loop (client)\n");	
@@ -299,8 +310,8 @@ char *createMessage(char *message, char *key) {
 
 	len = strlen(header) + strlen(msgId)  + strlen(message) + strlen(keyId)  + strlen(key) + strlen(EOT);
 	char *msg = malloc(sizeof(char) * (len + 1)); //leave space for the null terminator
-	memset(msg, '\0', sizeof(msg));
-
+	len = sizeof(msg); //gcc is a crybaby
+	memset(msg, '\0', len);
 
 	//combine strings
 	memcpy(msg, header, strlen(header)); 
