@@ -168,7 +168,13 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	msgLen = strlen(completeMsg);
 	//send data to server, starting with the message
 	ssize_t byteSent = send(socketFD, completeMsg, 1000, 0);
-	while(byteSent < msgLen) {     //send message in 1000 byte chunks until it is completely delivered
+	if (byteSent < 0) {
+		fprintf(stderr, "CLIENT: Send ERROR\n");
+		errorFlag = 1;
+		goto cleanup;
+	}
+	//send message in 1000 byte chunks until it is completely delivered
+	while(byteSent < msgLen) {     
 		currentSend = send(socketFD, &completeMsg[byteSent], 1000, 0);   //send out the next chunk of data
 		
 		//check for send errors
@@ -267,10 +273,18 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	recMsg[sizeof(recMsg) - 2]  = '\n';
 	recMsg[sizeof(recMsg) - 1] = '\0';	
 
+	//check to make sure we are comunicated with the correct server
+	if (strstr(recMsg, "OTP_ENC") == NULL) {
+		fprintf(stderr, "Comunicated from incorrect server.\n");
+		goto cleanup;
+	}	
+
+    
 	//strip off the header
+	char *returnHeader = "OTP_ENC";
 	finalOutput = malloc(sizeof(char) * (strlen(message) + 2)); //the encrypted message should be of the same length
-													      //as the original message plus a newline and '\0'
-	int digitsToCopy = sizeof(recMsg) -  strlen(incomingHeader); 
+													      //as the original message plus a newline and '\0' and newline character
+	int digitsToCopy = sizeof(recMsg) -  strlen(returnHeader);   
 	memcpy(finalOutput, &recMsg[sizeof(incomingHeader) + 1], digitsToCopy);
 
 	//output to stdout
@@ -295,6 +309,9 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	
 	if (errorFlag == 1) {
 		exit(1);
+	}
+	if (finalOutput	!= NULL) {
+		free(finalOutput);
 	}
 	
 }
