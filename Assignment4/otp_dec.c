@@ -206,7 +206,14 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	//error handling
 	if (charsRead == -1) {
 		fprintf(stderr, "Error recieving message from otp_dec_d (to otp_dec)\n");
+		errorFlag = 1;
 		goto cleanup;
+	}
+	//check for aborted server connection
+	if (charsRead == 0) {
+		 fprintf(stderr, "Error: could not contact otp_enc_d on port %s\n", port);
+		 errorFlag = 1;
+    	 goto cleanup;
 	}
 	else {
 		strcat(recMsg, readBuffer);
@@ -220,8 +227,15 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 		//check for error
 		if (currentRead == -1) {
 			fprintf(stderr, "Error recieving message from otp_dec_d (to otp_dec)\n");
+			errorFlag = 1;
 			goto cleanup; 
 		}
+		//check if server aborted connection
+	    if (currentRead == 0) {
+	        fprintf(stderr, "Server aborted connection.\n");
+			errorFlag = 1;
+		    goto cleanup;
+	    }
 		else {
 			charsRead += currentRead;
 			strcat(recMsg, readBuffer);
@@ -231,6 +245,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	//check to make sure we are comunicated with the correct server
 	if (strstr(recMsg, "OTP_DEC") == NULL) {
 		fprintf(stderr, "Comunicated from incorrect server.\n");
+		errorFlag = 1;
 		goto cleanup;
 	}	
     
@@ -267,7 +282,9 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	if (finalOutput	!= NULL) {
 		free(finalOutput);
 	}
-	
+	if (socketFD != 0) {
+		close(socketFD);
+	}
 }
 
 //combine all the different strings that need to be sent to the server

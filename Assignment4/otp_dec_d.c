@@ -52,7 +52,6 @@ char *decryptMessage(char *message, char *key) {
 
 	//conduct the decryption: Add the key to message then apply modulus 27
 	for(int i = 0; i < strlen(message); i++) {
-		mplusk = 0;
 
 		//first check for space character
 		if(message[i] == ' ') {
@@ -81,7 +80,7 @@ char *decryptMessage(char *message, char *key) {
 		}
 
 		//apply mod 27
-		rem = mplusk % 27;
+		rem = pminusk % 27;
 
 		//convert back to an uppercase character
 		if (rem == 26) {
@@ -315,6 +314,7 @@ void processData(int port) {
 						fprintf(stderr, "ERROR reading from socket\n");
 						printf("error reading from socket\n");
 						goto cleanup;
+						errorFlag = 1;
 					}
 										
 					//if initial read was a success, cat over the first read to "completeMsg"
@@ -357,9 +357,11 @@ void processData(int port) {
 						}											
 					}				
 
-					//validate that the header is correct (that we are talking to otp_enc)
+					//validate that the header is correct (that we are talking to otp_dec)
 					if (strstr(completeMsg, "HEADER_OTP_DEC") == NULL) {
-						fprintf(stderr, "Wrong client connection.\n");
+						//fprintf(stderr, "Wrong client connection.\n");
+						shutdown(establishedConnectionFD, 2);
+						errorFlag = 1;
 						goto cleanup;
 					}
 
@@ -373,7 +375,7 @@ void processData(int port) {
 					decrypted = decryptMessage(msg, key);
 
 					//send the client the encrypted message
-					ssize_t byteSent = send(establishedConnectionFD, encrypted, 1000, 0);
+					ssize_t byteSent = send(establishedConnectionFD, decrypted, 1000, 0);
 					if (byteSent < 0) {
 						fprintf(stderr, "SERVER: Send ERROR\n");
 						errorFlag = 1;
@@ -381,7 +383,7 @@ void processData(int port) {
 					}
 					int currentSend;
 					//if initial send was successful, send in 1000 byte chunks until it is completly delivered
-					while(byteSent < strlen(encrypted)) {     
+					while(byteSent < strlen(decrypted)) {     
 						//send out the next chunk of data
 						currentSend = send(establishedConnectionFD, &completeMsg[byteSent], 1000, 0);  
 		

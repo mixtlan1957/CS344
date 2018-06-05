@@ -49,6 +49,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	int currentRead = 0;      //variables to keep track of where we are in the sending process
 	int currentSend = 0;
 	char readBuffer[1000];
+	int errorFlag = 0;
 
 	//first check to make sure that we are getting actual data and not null arguments			
 	if (ptextFileName == NULL || keyFileName == NULL || port == NULL) {
@@ -131,8 +132,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 
 	//combine all the necessary strings into one big message to send to the server
 	completeMsg = createMessage(message, key);	
-	
-	int errorFlag = 0;  //simple error flag to keep track of weather or not there was an error so we can exit with 1	
+		
 	socketFD = 0;	
 
 	//send to otp_enc_d (encryption dameon)
@@ -206,6 +206,13 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	//error handling
 	if (charsRead == -1) {
 		fprintf(stderr, "Error recieving message from otp_enc_d (to otp_enc)\n");
+		errorFlag = 1;
+		goto cleanup;
+	}
+	//check for aborted server connection
+	if (charsRead == 0) {
+		fprintf(stderr, "Error: could not contact otp_enc_d on port %s\n", port);
+		errorFlag = 1;
 		goto cleanup;
 	}
 	else {
@@ -220,7 +227,14 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 		//check for error
 		if (currentRead == -1) {
 			fprintf(stderr, "Error recieving message from otp_enc_d (to otp_enc)\n");
+			errorFlag = 1;
 			goto cleanup; 
+		}
+		//check if server aborted connection
+		if (currentRead == 0) {
+			fprintf(stderr, "Server aborted connection.\n");
+			errorFlag =1;
+			goto cleanup;
 		}
 		else {
 			charsRead += currentRead;
@@ -231,6 +245,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	//check to make sure we are comunicated with the correct server
 	if (strstr(recMsg, "OTP_ENC") == NULL) {
 		fprintf(stderr, "Comunicated from incorrect server.\n");
+		errorFlag = 1;
 		goto cleanup;
 	}	
     
@@ -267,7 +282,10 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	if (finalOutput	!= NULL) {
 		free(finalOutput);
 	}
-	
+	//close the socket
+	if (socketFD != 0) {
+		close(socketFD);
+	}
 }
 
 //combine all the different strings that need to be sent to the server

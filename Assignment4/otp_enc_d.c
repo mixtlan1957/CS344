@@ -15,10 +15,15 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
-#include <time.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <sys/time.h>
+#include <time.h> 
+#include <fcntl.h>    //for setting sockets to not block, probably don't need this
+#include <pthread.h>  //for my failed attempt at thread pooling 
+#include <sys/time.h> 
+//sigaction necessary headers
+#include <signal.h>     
+#include <sys/wait.h>  
+#include <errno.h>     //errno
+
 
 //global variables
 #define NUM_THREADS 1
@@ -34,7 +39,7 @@ void processData(int);
 char *getMessage(char *);
 char *getKey(char *, int);
 int correctConnection(char *);
-
+void handle_sigchld(int);
 
 char *encryptMessage(char *message, char *key) {
 	char *encMsg;
@@ -310,6 +315,7 @@ void processData(int port) {
 					if(charsRead < 0) {
 						fprintf(stderr, "ERROR reading from socket\n");
 						printf("error reading from socket\n");
+						errorFlag = 1;
 						goto cleanup;
 					}
 										
@@ -355,7 +361,8 @@ void processData(int port) {
 
 					//validate that the header is correct (that we are talking to otp_enc)
 					if (strstr(completeMsg, "HEADER_OTP_ENC") == NULL) {
-						fprintf(stderr, "Wrong client connection.\n");
+						shutdown(establishedConnectionFD, 2);
+						errorFlag = 1;
 						goto cleanup;
 					}
 
@@ -394,6 +401,8 @@ void processData(int port) {
 					}										
 				}
 			}
+			
+		
 			//free malloc'd strings
 			if (encrypted != NULL) {
 				free(encrypted);
@@ -437,6 +446,14 @@ void processData(int port) {
 }
 
 
+//sigchldd signal handler
+//source: http://www.microhowto.info/howto/reap_zombie_processes_using_a_sigchld_handler.html
+void handle_sigchld(int sig) {
+  int saved_errno = errno;
+  while (waitpid((pid_t)(-1), 0, WNOHANG) > 0) {}
+  errno = saved_errno;
+}
+
 
 int main(int argc, char *argv[]) {
 	//initialize gobal thread tracking variable
@@ -450,11 +467,22 @@ int main(int argc, char *argv[]) {
 		argRead = argv[1];
 		listeningPort = atoi(argRead);
 		//include int checking statement here later 
+
+		//register signal action handler
+		//source: http://www.microhowto.info/howto/reap_zombie_processes_using_a_sigchld_handler.html
+		struct sigaction sa;
+		sa.sa_handler = &handle_sigchld;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+		if (sigaction(SIGCHLD, &sa, 0) == -1) {
+  			perror(0);
+ 	 		exit(1);
+		}	
 	
+		//call driver function
 		processData(listeningPort);
 			
 	}
-
 
 
 	return 0;
