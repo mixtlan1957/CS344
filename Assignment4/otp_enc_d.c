@@ -125,8 +125,6 @@ char *getKey(char *fullstr, int msgSize) {
 	memcpy(key, &fullstr[startIdx], msgSize);
 	key[msgSize] = '\0';
 
-	printf("Parsed key: %s\n", key);
-
 	return key;
 }
 
@@ -180,7 +178,6 @@ char *getMessage(char *fullstr) {
 	memcpy(message, &fullstr[startIdx], bitsCpy);
 	message[bitsCpy] = '\0';  //set the null terminator bit
 
-	printf("Message: %s\n", message);
 	
 	return message;
 }
@@ -189,7 +186,6 @@ char *getMessage(char *fullstr) {
 
 
 void processData(int port) {
-	printf("hey we're in!\n");
 	
 	//store the input variable
 	int portNumber = port;
@@ -240,7 +236,6 @@ void processData(int port) {
 
 	//primary loop
 	while(1) {
-		printf("we made it inside the loop.\n");
 		// Accept a connection, blocking if one is not available until one connects
 		sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 		establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
@@ -250,19 +245,22 @@ void processData(int port) {
 			goto cleanup;
 		}
 		
+			
 		//FORK HERE!
 		spawnPid = fork();
+	
 
 		//validate fork/pid
-		switch (spawnPid) {
 
-		case -1:
+		if (spawnPid == -1) {      //fun fact! it turns out switch statements are garbage in C
+								//and you can't declare variables within the switch statement lables
+								//something something scope
 			perror("Hull breach! fork error!\n");
 			goto cleanup;
-		break;
+		}
 
 		//child case
-		case 0:
+		if (spawnPid == 0) {
 			//setup select variables
 			fd_set readFDs;
 			fd_set writeFDs;
@@ -340,7 +338,7 @@ void processData(int port) {
 				
 						//read the next chunk of bytes	
 						currentRead = recv(establishedConnectionFD, readBuffer, 1000, 0);	
-						printf("Bytes read inside the loop %d\n", currentRead);
+				
 						//check for any errors
 						if (currentRead < 0) {
 							fprintf(stderr, "ERROR reading from socket\n");
@@ -354,8 +352,6 @@ void processData(int port) {
 							}
 						}											
 					}				
-
-					printf("SERVER: I recieved this from the client: \"%s\"\n", completeMsg);
 
 					//validate that the header is correct (that we are talking to otp_enc)
 					if (strstr(completeMsg, "HEADER_OTP_ENC") == NULL) {
@@ -371,8 +367,6 @@ void processData(int port) {
 
 					//generate encrypted message
 					encrypted = encryptMessage(msg, key);
-
-					printf("Encrypted string: %s\n", encrypted);
 
 					//send the client the encrypted message
 					ssize_t byteSent = send(establishedConnectionFD, encrypted, 1000, 0);
@@ -440,7 +434,6 @@ void processData(int port) {
 	if (errorFlag == 1) {
 		exit(1);
 	}
-	return NULL;
 }
 
 
