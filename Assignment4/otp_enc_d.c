@@ -30,7 +30,7 @@ int portUsage;
 
 //funcntion prototypes
 char *encryptMessage(char *, char *);
-void *processData(void *);
+void processData(int);
 char *getMessage(char *);
 char *getKey(char *, int);
 int correctConnection(char *);
@@ -188,11 +188,11 @@ char *getMessage(char *fullstr) {
 
 
 
-void *processData(void* port) {
+void processData(int port) {
 	printf("hey we're in!\n");
 	
 	//store the input variable
-	int portNumber = *((int *)port);
+	int portNumber = port;
 	
 	//variables for handling server communication
 	int listenSocketFD, establishedConnectionFD, charsRead;
@@ -206,6 +206,7 @@ void *processData(void* port) {
 	char *key = NULL;         
 	char *msg = NULL;
 	char *encrypted = NULL;
+	pid_t spawnPid; 
 
 	// Set up the address struct for this process (the server)
 	memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
@@ -246,144 +247,175 @@ void *processData(void* port) {
 		if (establishedConnectionFD < 0) {
 			fprintf(stderr, "ERROR on accept\n");
 			printf("error on accept\n");
+			goto cleanup;
 		}
 		
-	
-		//setup select variables
-		fd_set readFDs;
-		fd_set writeFDs;
-		struct timeval timeToWait;
-		int retval;
-		int maxFD;  //max file descriptor
+		//FORK HERE!
+		spawnPid = fork();
 
-		//watch the sockets for when they have input/output
-		FD_ZERO(&readFDs);
-		FD_ZERO(&writeFDs);
-		FD_SET(establishedConnectionFD, &readFDs);
-		FD_SET(establishedConnectionFD, &writeFDs);
+		//validate fork/pid
+		switch (spawnPid) {
+
+		case -1:
+			perror("Hull breach! fork error!\n");
+			goto cleanup;
+		break;
+
+		//child case
+		case 0:
+			//setup select variables
+			fd_set readFDs;
+			fd_set writeFDs;
+			struct timeval timeToWait;
+			int retval;
+			int maxFD;  //max file descriptor
+
+			//watch the sockets for when they have input/output
+			FD_ZERO(&readFDs);
+			FD_ZERO(&writeFDs);
+			FD_SET(establishedConnectionFD, &readFDs);
+			FD_SET(establishedConnectionFD, &writeFDs);
 
 
-		//Wait up to 50 seconds per loop cycle
-		timeToWait.tv_sec = 50;
-		timeToWait.tv_usec = 0;
+			//Wait up to 50 seconds per loop cycle
+			timeToWait.tv_sec = 50;
+			timeToWait.tv_usec = 0;
 
 
-		//determine that max file descriptor and add 1
-		maxFD = establishedConnectionFD;
+			//determine that max file descriptor and add 1
+			maxFD = establishedConnectionFD;
 		
-		//call select to read on listenSocketFD
-	//	retval = select(maxFD + 1, &readFDs, NULL, NULL, &timeToWait);
-//		printf("this is our retval: %d\n", retval);
-//		if (retval == -1) {
-//			errorFlag = 1;
-//			goto cleanup;
-//		}
+			//call select to read on listenSocketFD
+			retval = select(maxFD + 1, &readFDs, NULL, NULL, &timeToWait);
+			if (retval == -1) {
+				errorFlag = 1;
+				fprintf(stderr, "Error on client recieving socket.");
+				goto cleanup;
+			}
 	
 
-		//if the resource is available for reading, read the stream
-		//else if (retval != 0) {
-		//	if (FD_ISSET(establishedConnectionFD, &readFDs)) {
+			//if the resource is available for reading, read the stream
+			else if (retval != 0) {
+				if (FD_ISSET(establishedConnectionFD, &readFDs)) {
 
-				//variables to keep track of what we are currently reading and if we found the EOT descriptor
-				int currentRead = 0;
-				char *tempStr = NULL;
-				int found = 0;
+					//variables to keep track of what we are currently reading and if we found the EOT descriptor
+					int currentRead = 0;
+					char *tempStr = NULL;
+					int found = 0;
 
-				//get message from client
-				completeMsg = malloc(sizeof(char) * msgSize);
-				memset(readBuffer, 0, 1000);
-				charsRead = recv(establishedConnectionFD, readBuffer, 1000, 0); // Read the client's message from the socket
-				if(charsRead < 0) {
-					fprintf(stderr, "ERROR reading from socket\n");
-					printf("error reading from socket\n");
-					goto cleanup;
-				}
-										
-				//if initial read was a success, cat over the first read to "completeMsg"
-				strcat(completeMsg, readBuffer);
-				if (strstr(completeMsg, "$$EOT$$") != NULL) { //unless we already found the EOT flag
-					found = 1;
-				}
-		
-				//read the complete message (continue until we have reached the EOT flag)			
-				while (found == 0) {
-					//reset readBuffer
+					//get message from client
+					completeMsg = malloc(sizeof(char) * msgSize);
 					memset(readBuffer, 0, 1000);
-		
-					//check if we need to increase the size of the where the message is being stored
-					if (charsRead + readIncrement >= sizeof(completeMsg)) {
-						//resize completeMsg as necessasry
-						msgSize = msgSize * 2;	
-						tempStr = malloc(sizeof(char) * msgSize);
-						
-						//copy over what we already read
-						memcpy(tempStr, completeMsg, charsRead);
-						free(completeMsg);
-						completeMsg = tempStr;
-					}
-				
-					//read the next chunk of bytes	
-					currentRead = recv(establishedConnectionFD, readBuffer, 1000, 0);	
-					printf("Bytes read inside the loop %d\n", currentRead);
-					//check for any errors
-					if (currentRead < 0) {
+
+					// Read the client's message from the socket
+					charsRead = recv(establishedConnectionFD, readBuffer, 1000, 0); 
+					if(charsRead < 0) {
 						fprintf(stderr, "ERROR reading from socket\n");
+						printf("error reading from socket\n");
 						goto cleanup;
 					}
-					else {
-						charsRead += currentRead;
-						strcat(completeMsg, readBuffer);
-						if (strstr(completeMsg, "$$EOT$$") != NULL) {
-							found = 1;
-						}
-					}											
-				}				
-
-				printf("SERVER: I recieved this from the client: \"%s\"\n", completeMsg);
-
-				//validate that the header is correct (that we are talking to otp_enc)
-				if (strstr(completeMsg, "HEADER_OTP_ENC") == NULL) {
-					fprintf(stderr, "Wrong client connection.\n");
-					goto cleanup;
-				}
-
-				//parse the message
-				msg = getMessage(completeMsg);
-
-				//parse the key
-				key = getKey(completeMsg, strlen(msg));
-
-				//generate encrypted message
-				encrypted = encryptMessage(msg, key);
-
-				printf("Encrypted string: %s\n", encrypted);
-
-				//send the client the encrypted message
-				ssize_t byteSent = send(establishedConnectionFD, encrypted, 1000, 0);
-				if (byteSent < 0) {
-					fprintf(stderr, "SERVER: Send ERROR\n");
-					errorFlag = 1;
-					goto cleanup;
-				}
-				int currentSend;
-				//if initial send was successful, send in 1000 byte chunks until it is completly delivered
-				while(byteSent < strlen(encrypted)) {     
-					//send out the next chunk of data
-					currentSend = send(establishedConnectionFD, &completeMsg[byteSent], 1000, 0);  
+										
+					//if initial read was a success, cat over the first read to "completeMsg"
+					strcat(completeMsg, readBuffer);
+					if (strstr(completeMsg, "$$EOT$$") != NULL) { //unless we already found the EOT flag
+						found = 1;
+					}
 		
-					//check for send errors
-					if( currentSend < 0) {
-							fprintf(stderr, "SERVER: Send ERROR\n");
-							errorFlag = 1;
+					//read the complete message (continue until we have reached the EOT flag)			
+					while (found == 0) {
+						//reset readBuffer
+						memset(readBuffer, 0, 1000);
+		
+						//check if we need to increase the size of the where the message is being stored
+						if (charsRead + readIncrement >= sizeof(completeMsg)) {
+							//resize completeMsg as necessasry
+							msgSize = msgSize * 2;	
+							tempStr = malloc(sizeof(char) * msgSize);
+						
+							//copy over what we already read
+							memcpy(tempStr, completeMsg, charsRead);
+							free(completeMsg);
+							completeMsg = tempStr;
+						}
+				
+						//read the next chunk of bytes	
+						currentRead = recv(establishedConnectionFD, readBuffer, 1000, 0);	
+						printf("Bytes read inside the loop %d\n", currentRead);
+						//check for any errors
+						if (currentRead < 0) {
+							fprintf(stderr, "ERROR reading from socket\n");
 							goto cleanup;
+						}
+						else {
+							charsRead += currentRead;
+							strcat(completeMsg, readBuffer);
+							if (strstr(completeMsg, "$$EOT$$") != NULL) {
+								found = 1;
+							}
+						}											
+					}				
+
+					printf("SERVER: I recieved this from the client: \"%s\"\n", completeMsg);
+
+					//validate that the header is correct (that we are talking to otp_enc)
+					if (strstr(completeMsg, "HEADER_OTP_ENC") == NULL) {
+						fprintf(stderr, "Wrong client connection.\n");
+						goto cleanup;
 					}
-					//if our send was successful, tally up the bytes to move the pointer
-					else {
-						byteSent += currentSend;
+
+					//parse the message
+					msg = getMessage(completeMsg);
+
+					//parse the key
+					key = getKey(completeMsg, strlen(msg));
+
+					//generate encrypted message
+					encrypted = encryptMessage(msg, key);
+
+					printf("Encrypted string: %s\n", encrypted);
+
+					//send the client the encrypted message
+					ssize_t byteSent = send(establishedConnectionFD, encrypted, 1000, 0);
+					if (byteSent < 0) {
+						fprintf(stderr, "SERVER: Send ERROR\n");
+						errorFlag = 1;
+						goto cleanup;
 					}
-				}										
-		//	}
-	//	}
+					int currentSend;
+					//if initial send was successful, send in 1000 byte chunks until it is completly delivered
+					while(byteSent < strlen(encrypted)) {     
+						//send out the next chunk of data
+						currentSend = send(establishedConnectionFD, &completeMsg[byteSent], 1000, 0);  
+		
+						//check for send errors
+						if( currentSend < 0) {
+								fprintf(stderr, "SERVER: Send ERROR\n");
+								errorFlag = 1;
+								goto cleanup;
+						}
+						//if our send was successful, tally up the bytes to move the pointer
+						else {
+							byteSent += currentSend;
+						}
+					}										
+				}
+			}
+			//free malloc'd strings
+			if (encrypted != NULL) {
+				free(encrypted);
+			}
+			if (msg != NULL) {
+				free(msg);
+			}
+			if (key != NULL) {
+				free(key);
+			}
+			if (completeMsg != NULL) {
+				free(completeMsg);
+			}
+			//close the socket we were using		
+			close(establishedConnectionFD);
+		}	
 	}	
 
 
@@ -399,6 +431,9 @@ void *processData(void* port) {
 	}
 	if (key != NULL) {
 		free(key);
+	}
+	if (completeMsg != NULL) {
+		free(completeMsg);
 	}
 
 
@@ -423,21 +458,8 @@ int main(int argc, char *argv[]) {
 		listeningPort = atoi(argRead);
 		//include int checking statement here later 
 	
-		processData((void *) &listeningPort);
+		processData(listeningPort);
 			
-		/*
-		//create 5 threads - implement this part last
-		pthread_t threads[NUM_THREADS];
-		int result_code;
-		for (int i = 0; i < NUM_THREADS; i++) {
-			result_code = pthread_create(&threads[i], NULL, processData, (void *) &listeningPort);
-			if (result_code != 0) {
-				fprintf(stderr, "Error creating threads...\n");
-			}
-			printf("what what in the butt%d\n", result_code);
-		}
-		*/	
-
 	}
 
 
