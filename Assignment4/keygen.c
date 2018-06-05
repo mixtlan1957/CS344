@@ -43,8 +43,7 @@ void createFile(int fileLen) {
 		}		  												 
 	}
 	//append the newline character
-	tempStr[fileLen] = '\0';
-	tempStr[fileLen - 1] = '\n';	
+	strcat(tempStr, "\n\0");	
 
 	//output to stdout
 	fprintf(stdout, "%s", tempStr);

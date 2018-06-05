@@ -187,6 +187,8 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 			byteSent += currentSend;
 		}	
 	}	
+	printf("We sent everything...\n");
+//	printf("%s", completeMsg);
 
 	//get return from server
 	//calculate how long the return statement from server will be:
