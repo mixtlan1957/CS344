@@ -395,7 +395,7 @@ void processData(int port) {
 					//if initial send was successful, send in 1000 byte chunks until it is completly delivered
 					while(byteSent < strlen(decrypted)) {     
 						//send out the next chunk of data
-						currentSend = send(establishedConnectionFD, &completeMsg[byteSent], 1000, 0);  
+						currentSend = send(establishedConnectionFD, &decrypted[byteSent], 1000, 0);  
 		
 						//check for send errors
 						if( currentSend < 0) {
@@ -454,10 +454,7 @@ void processData(int port) {
 		free(completeMsg);
 	}
 
-
-	if (errorFlag == 1) {
-		exit(1);
-	}
+	exit(1);
 }
 
 
@@ -481,7 +478,10 @@ int main(int argc, char *argv[]) {
 	else {
 		argRead = argv[1];
 		listeningPort = atoi(argRead);
-		//include int checking statement here later 
+		if (argv[1] == NULL) {
+			fprintf(stderr, "Input port cannot be NULL.\n");
+			exit(1);
+		} 
 	
 		//register signal action handler
 		//source: http://www.microhowto.info/howto/reap_zombie_processes_using_a_sigchld_handler.html

@@ -263,9 +263,13 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	cleanup:
 	if (completeMsg != NULL) {
 		free(completeMsg);
-	}	
-	free(message);
-	free(key);
+	}
+	if (message != NULL) {	
+		free(message);
+	}
+	if (key != NULL) {
+		free(key);
+	}
 	if (recMsg != NULL) {
 		free(recMsg);
 	}

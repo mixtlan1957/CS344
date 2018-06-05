@@ -187,8 +187,6 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 			byteSent += currentSend;
 		}	
 	}	
-	printf("We sent everything...\n");
-//	printf("%s", completeMsg);
 
 	//get return from server
 	//calculate how long the return statement from server will be:
@@ -197,10 +195,9 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	msgLen = strlen(message) + strlen(incomingHeader) + 2; //strlen does not include null terminator acording to the interwebs
 
 	
-	//allocate the recieving buffer
-	recMsg = malloc(sizeof(char) * msgLen );
-	int temp = sizeof(recMsg);   //the fact that GNU complains about sizeof being declared inside memset is very annoying
-	memset(recMsg, '\0', temp);      
+	//allocate the recieving message
+	recMsg = malloc(sizeof(char) * msgLen);
+	memset(recMsg, 0, msgLen);      
 
 	//read the first chunk of data	
 	charsRead = recv(socketFD, readBuffer, 1000, 0);
@@ -242,17 +239,19 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 			charsRead += currentRead;
 			strcat(recMsg, readBuffer);
 		}			
-	}  	
-
+	}
+	strcat(recMsg, "\n\0");  	
+	printf("this is what we got: \n%s\n", recMsg); 
+	/*
 	//check to make sure we are comunicated with the correct server
 	if (strstr(recMsg, "OTP_ENC") == NULL) {
 		fprintf(stderr, "Comunicated from incorrect server.\n");
 		errorFlag = 1;
 		goto cleanup;
 	}	
-    
+    */
 	//strip off the header/identifier
-	temp = strlen(recMsg) - strlen("OTP_ENC");
+    int	temp = strlen(recMsg) - strlen("OTP_ENC");
 	memset(&recMsg[temp], '\0', strlen("OTP_ENC")); 
 	
 	//add newline character
@@ -265,9 +264,13 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	cleanup:
 	if (completeMsg != NULL) {
 		free(completeMsg);
-	}	
-	free(message);
-	free(key);
+	}
+	if (message != NULL) {	
+		free(message);
+	}
+	if (key != NULL) {
+		free(key);
+	}
 	if (recMsg != NULL) {
 		free(recMsg);
 	}
@@ -280,13 +283,6 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	
 	if (errorFlag == 1) {
 		exit(1);
-	}
-	if (finalOutput	!= NULL) {
-		free(finalOutput);
-	}
-	//close the socket
-	if (socketFD != 0) {
-		close(socketFD);
 	}
 }
 
