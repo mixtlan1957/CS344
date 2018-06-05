@@ -19,6 +19,10 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/time.h>
+//sigaction necessary headers
+#include <signal.h>     
+#include <sys/wait.h>  
+#include <errno.h>     //errno
 
 //global variables
 #define NUM_THREADS 1
@@ -220,7 +224,8 @@ void processData(int port) {
 	if (listenSocketFD < 0) {
 		fprintf(stderr, "ERROR opening socket\n");
 		printf("Error opening socket\n");
-		goto cleanup;
+		errorFlag = 1;
+		goto cleanup2;
 	}
 
 	//set up for reuse to avoid problems
@@ -234,19 +239,22 @@ void processData(int port) {
 	if (bind(listenSocketFD, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {// Connect socket to port
 		fprintf(stderr, "ERROR on binding\n");
 		printf("Error on binding\n");
-		goto cleanup;
+		errorFlag = 1;
+		goto cleanup2;
 	}
 	listen(listenSocketFD, 5); // Flip the socket on - it can now receive up to 5 connections
 
 	//primary loop
 	while(1) {
+		errorFlag = 0;
 		// Accept a connection, blocking if one is not available until one connects
 		sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 		establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
 		if (establishedConnectionFD < 0) {
 			fprintf(stderr, "ERROR on accept\n");
 			printf("error on accept\n");
-			goto cleanup;
+			errorFlag = 1;
+			goto cleanup2;
 		}
 		
 			
@@ -259,7 +267,8 @@ void processData(int port) {
 		if (spawnPid == -1) {      //spawn child error case
 								
 			perror("Hull breach! fork error!\n");
-			goto cleanup;
+			errorFlag = 1;
+			goto cleanup2;
 		}
 
 		//child case
@@ -313,8 +322,8 @@ void processData(int port) {
 					if(charsRead < 0) {
 						fprintf(stderr, "ERROR reading from socket\n");
 						printf("error reading from socket\n");
-						goto cleanup;
 						errorFlag = 1;
+						goto cleanup;
 					}
 										
 					//if initial read was a success, cat over the first read to "completeMsg"
@@ -346,6 +355,7 @@ void processData(int port) {
 						//check for any errors
 						if (currentRead < 0) {
 							fprintf(stderr, "ERROR reading from socket\n");
+							errorFlag = 1;
 							goto cleanup;
 						}
 						else {
@@ -400,6 +410,8 @@ void processData(int port) {
 					}										
 				}
 			}
+			cleanup:
+
 			//free malloc'd strings
 			if (decrypted != NULL) {
 				free(decrypted);
@@ -413,13 +425,19 @@ void processData(int port) {
 			if (completeMsg != NULL) {
 				free(completeMsg);
 			}
+			if (errorFlag == 1) {
+				exit(1);
+			}
+			else {
+				exit(0);
+			}
 			//close the socket we were using		
 			close(establishedConnectionFD);
 		}	
 	}	
 
 
-	cleanup:
+	cleanup2:
 
 
 	//free malloc'd strings
@@ -443,6 +461,14 @@ void processData(int port) {
 }
 
 
+//sigchldd signal handler
+//source: http://www.microhowto.info/howto/reap_zombie_processes_using_a_sigchld_handler.html
+void handle_sigchld(int sig) {
+  int saved_errno = errno;
+  while (waitpid((pid_t)(-1), 0, WNOHANG) > 0) {}
+  errno = saved_errno;
+}
+
 
 int main(int argc, char *argv[]) {
 	//initialize gobal thread tracking variable
@@ -457,6 +483,18 @@ int main(int argc, char *argv[]) {
 		listeningPort = atoi(argRead);
 		//include int checking statement here later 
 	
+		//register signal action handler
+		//source: http://www.microhowto.info/howto/reap_zombie_processes_using_a_sigchld_handler.html
+		struct sigaction sa;
+		sa.sa_handler = &handle_sigchld;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+		if (sigaction(SIGCHLD, &sa, 0) == -1) {
+  			perror(0);
+ 	 		exit(1);
+		}	
+	
+		//call driver function	
 		processData(listeningPort);
 			
 	}

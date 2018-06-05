@@ -221,7 +221,8 @@ void processData(int port) {
 	if (listenSocketFD < 0) {
 		fprintf(stderr, "ERROR opening socket\n");
 		printf("Error opening socket\n");
-		goto cleanup;
+		errorFlag = 1;
+		goto cleanup2;
 	}
 
 	//set up for reuse to avoid problems
@@ -235,19 +236,21 @@ void processData(int port) {
 	if (bind(listenSocketFD, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {// Connect socket to port
 		fprintf(stderr, "ERROR on binding\n");
 		printf("Error on binding\n");
-		goto cleanup;
+		errorFlag = 1;
+		goto cleanup2;
 	}
 	listen(listenSocketFD, 5); // Flip the socket on - it can now receive up to 5 connections
 
 	//primary loop
 	while(1) {
+		errorFlag = 0;
 		// Accept a connection, blocking if one is not available until one connects
 		sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 		establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
 		if (establishedConnectionFD < 0) {
 			fprintf(stderr, "ERROR on accept\n");
 			printf("error on accept\n");
-			goto cleanup;
+			goto cleanup2;
 		}
 		
 			
@@ -261,7 +264,7 @@ void processData(int port) {
 								//and you can't declare variables within the switch statement lables
 								//something something scope
 			perror("Hull breach! fork error!\n");
-			goto cleanup;
+			goto cleanup2;
 		}
 
 		//child case
@@ -348,6 +351,7 @@ void processData(int port) {
 						//check for any errors
 						if (currentRead < 0) {
 							fprintf(stderr, "ERROR reading from socket\n");
+							errorFlag = 1;
 							goto cleanup;
 						}
 						else {
@@ -402,7 +406,7 @@ void processData(int port) {
 				}
 			}
 			
-		
+			cleanup:
 			//free malloc'd strings
 			if (encrypted != NULL) {
 				free(encrypted);
@@ -416,13 +420,20 @@ void processData(int port) {
 			if (completeMsg != NULL) {
 				free(completeMsg);
 			}
+			if (errorFlag == 1) {
+				exit(1);
+			}
+			else {
+				exit(0);
+			}
+
 			//close the socket we were using		
 			close(establishedConnectionFD);
 		}	
 	}	
 
 
-	cleanup:
+	cleanup2:
 
 
 	//free malloc'd strings
@@ -439,10 +450,6 @@ void processData(int port) {
 		free(completeMsg);
 	}
 
-
-	if (errorFlag == 1) {
-		exit(1);
-	}
 }
 
 
