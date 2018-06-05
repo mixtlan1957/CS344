@@ -325,10 +325,17 @@ void processData(int port) {
 						errorFlag = 1;
 						goto cleanup;
 					}
-										
+					
+					//validate that the header is correct (that we are talking to otp_enc)
+					if (strstr(readBuffer, "HEADER_OTP_DEC") == NULL) {
+						shutdown(establishedConnectionFD, 2);
+						errorFlag = 1;
+						goto cleanup;
+					}
+
 					//if initial read was a success, cat over the first read to "completeMsg"
 					strcat(completeMsg, readBuffer);
-					if (strstr(completeMsg, "$$EOT$$") != NULL) { //unless we already found the EOT flag
+					if (strstr(readBuffer, "$$EOT$$") != NULL) { //unless we already found the EOT flag
 						found = 1;
 					}
 		
@@ -338,7 +345,7 @@ void processData(int port) {
 						memset(readBuffer, 0, 1000);
 		
 						//check if we need to increase the size of the where the message is being stored
-						if (charsRead + readIncrement >= sizeof(completeMsg)) {
+						if (charsRead + readIncrement >= msgSize) {
 							//resize completeMsg as necessasry
 							msgSize = msgSize * 2;	
 							tempStr = malloc(sizeof(char) * msgSize);
@@ -361,19 +368,12 @@ void processData(int port) {
 						else {
 							charsRead += currentRead;
 							strcat(completeMsg, readBuffer);
-							if (strstr(completeMsg, "$$EOT$$") != NULL) {
+							if (strstr(readBuffer, "$$EOT$$") != NULL) {
 								found = 1;
 							}
 						}											
 					}				
 
-					//validate that the header is correct (that we are talking to otp_dec)
-					if (strstr(completeMsg, "HEADER_OTP_DEC") == NULL) {
-						//fprintf(stderr, "Wrong client connection.\n");
-						shutdown(establishedConnectionFD, 2);
-						errorFlag = 1;
-						goto cleanup;
-					}
 
 					//parse the message
 					msg = getMessage(completeMsg);
