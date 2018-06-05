@@ -41,30 +41,56 @@ char *encryptMessage(char *message, char *key) {
 	int msgInt;
 	int keyInt;
 	int mplusk;
-	char header = "OTP_ENC";	
-	int encMsgSize = strlen(message) + strlen(header) + 1; 	
+	int rem;
+	char *header = "OTP_ENC";	
+	int encMsgSize = strlen(message) + strlen(header) + 1;
 
 	//malloc for size of encMsg, and size of header and null terminator
 	encMsg = malloc(sizeof(char) * encMsgSize);
+	memset(encMsg, '\0', encMsgSize);
+
 
 	//conduct the encryption: Add the key to message then apply modulus 27
 	for(int i = 0; i < strlen(message); i++) {
-		msgInt = atoi(message[i]);
-		keyInt = atoi(key[i]);
+		mplusk = 0;
 
+		//first check for space character
+		if(message[i] == ' ') {
+			msgInt = 26;
+		}
+		//if it's not a space character, get the ascii value then substract value of A
+		else {
+			msgInt = (int)message[i];
+			msgInt -= 65;
+		}
+		//do the same for the key
+		if (key[i] == ' ') {
+			keyInt = 26;
+		}
+		else {
+			keyInt = (int)key[i];
+			keyInt -= 65;
+		}		
+		
 		//add the number values together
 		mplusk = msgInt + keyInt;
 
 		//apply mod 27
-		mplusk = mplusk % 27;
+		rem = mplusk % 27;
 
-		//write to output encrypted msg
-		encMsg[i] = mplusk;
+		//convert back to an uppercase character
+		if (rem == 26) {
+			encMsg[i] = ' ';
+		}
+		//if character doesn't correspond to a space...
+		else {
+			rem = rem + (65);	    //to get the char value add the ascii of 'A'	
+			encMsg[i] = (char)rem;  //cast it into an upper case letter
+		}
 	}
 	
 	//add the header to the end of the file
 	strcat(encMsg, header);
-	encMsg[encMsgSize] = '\0';	
 
 	return encMsg;
 }
@@ -78,15 +104,14 @@ char *getKey(char *fullstr, int msgSize) {
 	char *keyId = "$$KEY$$: "; 
 	int foundStart = 0;
 	int i = 0;
-	int bitsCpy;
 
 	//the key length has already been verified, thus we only need to grab as many characters are in the
 	//message in order to encrypt. 
-	while (i < msgSize && foundStart == 0) {
+	while (i < strlen(fullstr) && foundStart == 0) {
 
 		//search for the start of the message
-		if (fullstr[i] == '$' && fullstr[i+1] == '$' && fullstr[i+2] == 'K' && fullstr[i+3] == 'E' &&
-			fullstr[i+4] == 'Y' && fullstr[i+5] == '$' && fullstr[i+6] == '$') {
+		if (fullstr[i] == '$' && fullstr[i+1] == '$' && fullstr[i+2] == 'K' && fullstr[i+3] == 'E' && 
+			 fullstr[i+4] == 'Y' && fullstr[i+5] == '$' && fullstr[i+6] == '$') {
 			//store the start index of key
 			foundStart = 1;
 			startIdx = i + strlen(keyId);
@@ -113,20 +138,18 @@ char *getMessage(char *fullstr) {
 	int startIdx;     //start index of message 
  	int endIdx;       //end index of message
 	char *message;    //return variable
-	char *msgId = "$$MESSAGE$$: ";  
-	char *keyId = "$$KEY$$: "; 
+	char *msgId = "$$MESSAGE$$: ";   
 	int foundStart = 0;
 	int foundEnd = 0;
 	int i = 0;
 	int bitsCpy; 
 
 	//parse the full string: the header we are looking for is 
-	while (i < strlen(fullstr) && foundStart == 0 && foundEnd == 0) {
+	while (i < strlen(fullstr) && (foundStart == 0 || foundEnd == 0)) {
 
 		//search for the start of the message
 		if (fullstr[i] == '$' && fullstr[i+1] == '$' && fullstr[i+2] == 'M' && fullstr[i+3] == 'E' &&
-			fullstr[i+4] == 'S' && fullstr[i+5] == 'S' && fullstr[i+6] == 'A' && fullstr[i+7] == 'G' && 
-			&& fullstr[i+8] == 'E' && fullstr[i+9] == '$' && fullstr[i+10] == '$' ) {
+			 fullstr[i+4] == 'S' && fullstr[i+5] == 'S') {
 
 			//if we found the occurance of the message header, store its start location
 			foundStart = 1;
@@ -136,7 +159,10 @@ char *getMessage(char *fullstr) {
 		//now we search for the end of the message index
 		if (fullstr[i] == '$' && fullstr[i+1] == '$' && fullstr[i+2] == 'K' && fullstr[i+3] == 'E' 
 			&& fullstr[i+4] == 'Y' && fullstr[i+5] == '$' && fullstr[i+6] == '$') {
-			foundEnd = 
+			foundEnd = 1;
+			endIdx = i-1;  //the end index is -1 due to the pointer currently pointing at start of 
+						  //"$$KEY$$" and we don't need the \n character 
+			 
 		} 	
 		//increment index
 		i++;
@@ -144,7 +170,8 @@ char *getMessage(char *fullstr) {
 
 	//check for any errors
 	if (foundStart == 0 || foundEnd == 0) {
-		fprintf(stderr, "Something has gone terribly wrong: server cannot parse message.\n");
+		fprintf(stderr, "Something has gone terribly wrong: server cannot parse message.");
+		printf("foundstart = %d, foundEnd = %d\n", foundStart, foundEnd);
 	}
 	
 	//otherwise we are ready to copy the substring and go on about our merry way
@@ -155,7 +182,7 @@ char *getMessage(char *fullstr) {
 
 	printf("Message: %s\n", message);
 	
-	return messasge;
+	return message;
 }
 
 
@@ -170,14 +197,14 @@ void *processData(void* port) {
 	//variables for handling server communication
 	int listenSocketFD, establishedConnectionFD, charsRead;
 	socklen_t sizeOfClientInfo;
-	char *readBuffer = NULL;
+	char readBuffer[1000];
 	struct sockaddr_in serverAddress, clientAddress;
 	int errorFlag = 0;
 	int readIncrement = 1000;  
-	int readBufferSize = 1000;
+	int msgSize = 1000;
 	char *completeMsg = NULL;
 	char *key = NULL;         
-	char *msg + NULL;
+	char *msg = NULL;
 	char *encrypted = NULL;
 
 	// Set up the address struct for this process (the server)
@@ -257,8 +284,13 @@ void *processData(void* port) {
 		//else if (retval != 0) {
 		//	if (FD_ISSET(establishedConnectionFD, &readFDs)) {
 
+				//variables to keep track of what we are currently reading and if we found the EOT descriptor
+				int currentRead = 0;
+				char *tempStr = NULL;
+				int found = 0;
+
 				//get message from client
-				readBuffer = malloc(sizeof(char) * 1000);
+				completeMsg = malloc(sizeof(char) * msgSize);
 				memset(readBuffer, 0, 1000);
 				charsRead = recv(establishedConnectionFD, readBuffer, 1000, 0); // Read the client's message from the socket
 				if(charsRead < 0) {
@@ -266,33 +298,30 @@ void *processData(void* port) {
 					printf("error reading from socket\n");
 					goto cleanup;
 				}
-
-				//if read was successful copy over first chunk of bytes to our mesage variable
-				completeMsg = malloc(sizeof(char) * 1000); 
-				memcpy(completeMsg, readBuffer, 1000);
-				
-				//variables to keep track of what we are currently reading and if we found the EOT descriptor
-				int currentRead = 0;
-				char *tempStr = NULL;
-				int found = 0;
-				//read the complete message (continue reading until we have obtained the end of transmission flag)
-				//reset the buffer
-			
+										
+				//if initial read was a success, cat over the first read to "completeMsg"
+				strcat(completeMsg, readBuffer);
+				if (strstr(completeMsg, "$$EOT$$") != NULL) { //unless we already found the EOT flag
+					found = 1;
+				}
+		
+				//read the complete message (continue until we have reached the EOT flag)			
 				while (found == 0) {
-
-					memset(readBuffer, 0, 1000); 	//reset the read buffer
+					//reset readBuffer
+					memset(readBuffer, 0, 1000);
+		
 					//check if we need to increase the size of the where the message is being stored
-					/*
 					if (charsRead + readIncrement >= sizeof(completeMsg)) {
-						readBufferSize = readBufferSize * 2;	
-						tempStr = malloc(sizeof(char) * readBufferSize);
+						//resize completeMsg as necessasry
+						msgSize = msgSize * 2;	
+						tempStr = malloc(sizeof(char) * msgSize);
 						
-						int tempInt = sizeof(readBuffer);
-						memcpy(tempStr, readBuffer, tempInt);
-						free(readBuffer);
-						readBuffer = tempStr;
+						//copy over what we already read
+						memcpy(tempStr, completeMsg, charsRead);
+						free(completeMsg);
+						completeMsg = tempStr;
 					}
-					*/
+				
 					//read the next chunk of bytes	
 					currentRead = recv(establishedConnectionFD, readBuffer, 1000, 0);	
 					printf("Bytes read inside the loop %d\n", currentRead);
@@ -303,11 +332,11 @@ void *processData(void* port) {
 					}
 					else {
 						charsRead += currentRead;
-						if (strstr(completeMsg, "$$KEY$$")) {
+						strcat(completeMsg, readBuffer);
+						if (strstr(completeMsg, "$$EOT$$") != NULL) {
 							found = 1;
 						}
-					}
-					strcat(completeMsg, readBuffer);											
+					}											
 				}				
 
 				printf("SERVER: I recieved this from the client: \"%s\"\n", completeMsg);
@@ -315,9 +344,8 @@ void *processData(void* port) {
 				//validate that the header is correct (that we are talking to otp_enc)
 				if (strstr(completeMsg, "HEADER_OTP_ENC") == NULL) {
 					fprintf(stderr, "Wrong client connection.\n");
+					goto cleanup;
 				}
-
-				
 
 				//parse the message
 				msg = getMessage(completeMsg);
@@ -328,16 +356,20 @@ void *processData(void* port) {
 				//generate encrypted message
 				encrypted = encryptMessage(msg, key);
 
+				printf("Encrypted string: %s\n", encrypted);
+
 				//send the client the encrypted message
 				ssize_t byteSent = send(establishedConnectionFD, encrypted, 1000, 0);
 				if (byteSent < 0) {
-					printf(stderr, "SERVER: Send ERROR\n");
+					fprintf(stderr, "SERVER: Send ERROR\n");
 					errorFlag = 1;
 					goto cleanup;
 				}
+				int currentSend;
 				//if initial send was successful, send in 1000 byte chunks until it is completly delivered
 				while(byteSent < strlen(encrypted)) {     
-					currentSend = send(socketFD, &completeMsg[byteSent], 1000, 0);   //send out the next chunk of data
+					//send out the next chunk of data
+					currentSend = send(establishedConnectionFD, &completeMsg[byteSent], 1000, 0);  
 		
 					//check for send errors
 					if( currentSend < 0) {
@@ -347,7 +379,7 @@ void *processData(void* port) {
 					}
 					//if our send was successful, tally up the bytes to move the pointer
 					else {
-					byteSent += currentSend;
+						byteSent += currentSend;
 					}
 				}										
 		//	}
@@ -357,11 +389,6 @@ void *processData(void* port) {
 
 	cleanup:
 
-
-	char *completeMsg = NULL;
-	char *key = NULL;         
-	char *msg + NULL;
-	char *encrypted = NULL;
 
 	//free malloc'd strings
 	if (encrypted != NULL) {

@@ -48,6 +48,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	char *finalOutput = NULL;
 	int currentRead = 0;      //variables to keep track of where we are in the sending process
 	int currentSend = 0;
+	char readBuffer[1000];
 
 	//first check to make sure that we are getting actual data and not null arguments			
 	if (ptextFileName == NULL || keyFileName == NULL || port == NULL) {
@@ -130,8 +131,6 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 
 	//combine all the necessary strings into one big message to send to the server
 	completeMsg = createMessage(message, key);	
-	//printf("%s", completeMsg);
-	//sleep(5);
 	
 	int errorFlag = 0;  //simple error flag to keep track of weather or not there was an error so we can exit with 1	
 	socketFD = 0;	
@@ -186,73 +185,38 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 		//if our send was successful, tally up the bytes to move the pointer
 		else {
 			byteSent += currentSend;
-		}
-		printf("We sent the server: %s \n", "something?");	
-	}
-	printf("we made it past the send loop (client)\n");	
+		}	
+	}	
 
 	//get return from server
 	//calculate how long the return statement from server will be:
 	//header + encrypted message + newline character + null terminator
-	char *incomingHeader = "HEADER_OTP_ENC_P ";
+	char *incomingHeader = "OTP_ENC";
 	msgLen = strlen(message) + strlen(incomingHeader) + 2; //strlen does not include null terminator acording to the interwebs
 
 	
 	//allocate the recieving buffer
 	recMsg = malloc(sizeof(char) * msgLen );
-	msgLen -= 2; //bytes we expect/need to recieve: encrypted message + header      
-	
-	//set a time limit for reading from server
-	time_t start = time(0);
-	time_t limit;
+	int temp = sizeof(recMsg);   //the fact that GNU complains about sizeof being declared inside memset is very annoying
+	memset(recMsg, '\0', temp);      
 
 	//read the first chunk of data	
-	charsRead = recv(socketFD, recMsg, 1000, 0);
+	charsRead = recv(socketFD, readBuffer, 1000, 0);
 
 	//error handling
 	if (charsRead == -1) {
 		fprintf(stderr, "Error recieving message from otp_enc_d (to otp_enc)\n");
 		goto cleanup;
-	}	
-
-	//set the socket to not block since we are reading in byte chunks
-	//including this statement, just in case incomplete packet sent
-	//fcntl(socketFD, F_SETFL, O_NONBLOCK);
-
-	//make sure we at least get the header...
-	while (charsRead < sizeof(incomingHeader)) {
-		
-		currentRead = recv(socketFD, recMsg, 1000, 0);
-		
-		//check for error
-		if (currentRead == -1) {
-			fprintf(stderr, "Error recieving message from otp_enc_d (to otp_enc)\n");
-			goto cleanup; 
-		}
-		else {
-			charsRead += currentRead;
-		}
-		limit = time(0);
-		
-		//transmission should not take more than 5 seconds for header alone...
-		if (limit - start > 5) {
-			fprintf(stderr, "Connection timed out: otp_enc_d to otp_enc\n");
-			goto cleanup;
-		}	
 	}
-	
-	//check to make sure we connected to correct client upon first byte chunk read
-	if (strstr(recMsg, incomingHeader) == NULL) {
-		fprintf(stderr, "Failed to connect to the correct server.\n");
-		errorFlag = 1;
-		goto cleanup;
-	}	
+	else {
+		strcat(recMsg, readBuffer);
+	}
 		
-
 	//if all is good, continue reading the stream
-	start = time(0);
 	while (charsRead < msgLen) {
-		currentRead = recv(socketFD, recMsg, 1000, 0);	
+		//reset buffer and read next chunk
+		memset(readBuffer, 0, sizeof(readBuffer));
+		currentRead = recv(socketFD, readBuffer, 1000, 0);	
 		//check for error
 		if (currentRead == -1) {
 			fprintf(stderr, "Error recieving message from otp_enc_d (to otp_enc)\n");
@@ -260,35 +224,25 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 		}
 		else {
 			charsRead += currentRead;
-		}
-		limit = time(0);
-	
-		//transmission should not take more than 10 seconds...
-		if (limit - start > 10) {
-			fprintf(stderr, "Connection timed out: otp_enc_d to otp_enc\n");
-			goto cleanup;
+			strcat(recMsg, readBuffer);
 		}			
 	}  	
-	//add newline and null terminator	
-	recMsg[sizeof(recMsg) - 2]  = '\n';
-	recMsg[sizeof(recMsg) - 1] = '\0';	
 
 	//check to make sure we are comunicated with the correct server
 	if (strstr(recMsg, "OTP_ENC") == NULL) {
 		fprintf(stderr, "Comunicated from incorrect server.\n");
 		goto cleanup;
 	}	
-
     
-	//strip off the header
-	char *returnHeader = "OTP_ENC";
-	finalOutput = malloc(sizeof(char) * (strlen(message) + 2)); //the encrypted message should be of the same length
-													      //as the original message plus a newline and '\0' and newline character
-	int digitsToCopy = sizeof(recMsg) -  strlen(returnHeader);   
-	memcpy(finalOutput, &recMsg[sizeof(incomingHeader) + 1], digitsToCopy);
+	//strip off the header/identifier
+	temp = strlen(recMsg) - strlen("OTP_ENC");
+	memset(&recMsg[temp], '\0', strlen("OTP_ENC")); 
+	
+	//add newline character
+	strcat(recMsg, "\n");
 
 	//output to stdout
-	fprintf(stdout, finalOutput);
+	fprintf(stdout, recMsg);
 
 	//free memory allocated for strings
 	cleanup:
