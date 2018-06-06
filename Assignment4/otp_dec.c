@@ -2,8 +2,8 @@
 ** Program Filename: otp_dec.c
 ** Author: Mario Franco-Munoz
 ** Due Date: 6/12/2018
-** Description:CS344 Assignment 4:
-**  
+** Description:CS344 Assignment 4: otp_dec takes an encrypted message, a key
+**  asks otp_dec_d to decrypt the message and outputs the result to stdout.
 *********************************************************************/
 #define _GNU_SOURCE   //to be able to use getline without problems
 #include <stdio.h>
@@ -15,8 +15,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
-#include <time.h>
-#include <fcntl.h>
+
 
 //function prototypes
 void error(const char *);
@@ -211,7 +210,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	}
 	//check for aborted server connection
 	else if (charsRead == 0) {
-		 fprintf(stderr, "Error: could not contact otp_enc_d on port %s\n", port);
+		 fprintf(stderr, "Error: could not contact otp_enc_d on port %d\n", portNumber);
 		 errorFlag = 1;
     	 goto cleanup;
 	}
@@ -302,7 +301,7 @@ char *createMessage(char *message, char *key) {
 
 	len = strlen(header) + strlen(msgId)  + strlen(message) + strlen(keyId)  + strlen(key) + strlen(EOT);
 	char *msg = malloc(sizeof(char) * (len + 1)); //leave space for the null terminator
-	len = sizeof(msg); //gcc is a crybaby
+	len = sizeof(msg); 
 	memset(msg, '\0', len);
 
 	//combine strings

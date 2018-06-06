@@ -2,8 +2,9 @@
 ** Program Filename: otp_enc_d.c
 ** Author: Mario Franco-Munoz
 ** Due Date: 6/12/2018
-** Description:CS344 Assignment 4:
-**  
+** Description:CS344 Assignment 4: otp_enc_d recieves a message from otp_enc
+**  containg an a message an encryption key. It then encrypts the message and
+**  returns the result to otp_enc.
 *********************************************************************/
 #define _GNU_SOURCE   //to be able to use getline without problems
 #include <stdio.h>
@@ -16,8 +17,6 @@
 #include <netinet/in.h>
 #include <netdb.h> 
 #include <time.h> 
-#include <fcntl.h>    //for setting sockets to not block, probably don't need this
-#include <pthread.h>  //for my failed attempt at thread pooling 
 #include <sys/time.h> 
 //sigaction necessary headers
 #include <signal.h>     
@@ -325,9 +324,11 @@ void processData(int port) {
 					//validate that the header is correct (that we are talking to otp_enc)
 					if (strstr(readBuffer, "HEADER_OTP_ENC") == NULL) {
 						shutdown(establishedConnectionFD, 2);
+						fprintf(stderr, "Connection rejected by server. otp_dec cannot use otp_enc_d\n");
 						errorFlag = 1;
 						goto cleanup;
 					}
+				
 										
 					//if initial read was a success, cat over the first read to "completeMsg"
 					strcat(completeMsg, readBuffer);

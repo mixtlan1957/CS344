@@ -329,6 +329,7 @@ void processData(int port) {
 					//validate that the header is correct (that we are talking to otp_enc)
 					if (strstr(readBuffer, "HEADER_OTP_DEC") == NULL) {
 						shutdown(establishedConnectionFD, 2);
+						fprintf(stderr, "Connection rejected by server. otp_enc cannot use otp_dec_d\n");
 						errorFlag = 1;
 						goto cleanup;
 					}

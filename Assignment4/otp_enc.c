@@ -2,8 +2,8 @@
 ** Program Filename: otp_enc.c
 ** Author: Mario Franco-Munoz
 ** Due Date: 6/12/2018
-** Description:CS344 Assignment 4:
-**  
+** Description:CS344 Assignment 4: otp_enc takes a message and an encryption key
+**  asks otp_enc_d to encrypt the message and then outputs the result to stdout.
 *********************************************************************/
 #define _GNU_SOURCE   //to be able to use getline without problems
 #include <stdio.h>
@@ -15,8 +15,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
-#include <time.h>
-#include <fcntl.h>
+
 
 //function prototypes
 void error(const char *);
@@ -210,7 +209,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	}
 	//check for aborted server connection
 	else if (charsRead == 0) {
-		fprintf(stderr, "Error: could not contact otp_enc_d on port %s\n", port);
+		fprintf(stderr, "Error: could not contact otp_enc_d on port %d\n", portNumber);
 		errorFlag = 1;
 		goto cleanup;
 	}
