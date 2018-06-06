@@ -209,7 +209,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 		goto cleanup;
 	}
 	//check for aborted server connection
-	if (charsRead == 0) {
+	else if (charsRead == 0) {
 		fprintf(stderr, "Error: could not contact otp_enc_d on port %s\n", port);
 		errorFlag = 1;
 		goto cleanup;
@@ -230,7 +230,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 			goto cleanup; 
 		}
 		//check if server aborted connection
-		if (currentRead == 0) {
+		else if (currentRead == 0) {
 			fprintf(stderr, "Server aborted connection.\n");
 			errorFlag =1;
 			goto cleanup;
@@ -240,18 +240,17 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 			strcat(recMsg, readBuffer);
 		}			
 	}
-	strcat(recMsg, "\n\0");  	
-	printf("this is what we got: \n%s\n", recMsg); 
-	/*
+	strcat(recMsg, "\n\0");  	 
+	
 	//check to make sure we are comunicated with the correct server
 	if (strstr(recMsg, "OTP_ENC") == NULL) {
 		fprintf(stderr, "Comunicated from incorrect server.\n");
 		errorFlag = 1;
 		goto cleanup;
 	}	
-    */
+   
 	//strip off the header/identifier
-    int	temp = strlen(recMsg) - strlen("OTP_ENC");
+    int	temp = strlen(recMsg) - strlen("OTP_ENC") - 1;
 	memset(&recMsg[temp], '\0', strlen("OTP_ENC")); 
 	
 	//add newline character

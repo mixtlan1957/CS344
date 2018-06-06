@@ -210,7 +210,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 		goto cleanup;
 	}
 	//check for aborted server connection
-	if (charsRead == 0) {
+	else if (charsRead == 0) {
 		 fprintf(stderr, "Error: could not contact otp_enc_d on port %s\n", port);
 		 errorFlag = 1;
     	 goto cleanup;
@@ -231,7 +231,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 			goto cleanup; 
 		}
 		//check if server aborted connection
-	    if (currentRead == 0) {
+	    else if (currentRead == 0) {
 	        fprintf(stderr, "Server aborted connection.\n");
 			errorFlag = 1;
 		    goto cleanup;
