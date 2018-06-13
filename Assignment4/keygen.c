@@ -27,6 +27,8 @@ void createFile(int fileLen) {
 
 	//allocate a string with length of file + \n character and '\0' character
 	char *tempStr = malloc((fileLen + 2)*sizeof(char));	
+	int tempCount = fileLen + 2;
+	memset(tempStr, 0, tempCount);
 	assert(tempStr != NULL);
 
 
@@ -43,7 +45,8 @@ void createFile(int fileLen) {
 		}		  												 
 	}
 	//append the newline character
-	strcat(tempStr, "\n\0");	
+	tempStr[fileLen] = '\0';
+	tempStr[fileLen-1] = '\n';	
 
 	//output to stdout
 	fprintf(stdout, "%s", tempStr);

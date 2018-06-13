@@ -15,7 +15,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
-
+#include <assert.h>
 
 //function prototypes
 void error(const char *);
@@ -29,10 +29,10 @@ char* createMessage(char*, char*);
 //server on the user defined port number
 void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 	//variables associated with reading files and file contents
-	FILE *messageFile;
-	FILE *keyFile;
-	char *message;      //initial read of msg from file
-	char *key;			//initial read of key from file
+	FILE *messageFile = NULL;
+	FILE *keyFile = NULL;
+	char *message= NULL;      //initial read of msg from file
+	char *key = NULL;			//initial read of key from file
 	ssize_t msgLen;    //outbound message length        
 	ssize_t keyLength; //outbound key length
 	size_t buffersize = 0;
@@ -270,7 +270,7 @@ void sendMessage(char* ptextFileName, char* keyFileName, char* port) {
 		free(key);
 	}
 	if (recMsg != NULL) {
-		free(recMsg);
+	//	free(recMsg);
 	}
 	if(finalOutput != NULL) {
 		free(finalOutput);
